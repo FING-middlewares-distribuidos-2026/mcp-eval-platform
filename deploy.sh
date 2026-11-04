@@ -40,6 +40,17 @@
 #                                /analyze/prompt.
 #   NETBIRD_MANAGEMENT_URL       your NetBird management server (default placeholder is substituted)
 #   NETBIRD_SETUP_KEY            setup key written into Secret netbird-auth (both namespaces)
+#   ---- two-sided Vigil scanning in Occludra (opt-in; defaults in the manifest keep it OFF) ----
+#   VIGIL_SCAN_IN=1              Occludra scans completion prompts against Vigil /analyze/prompt
+#                                before proxying (covers the workstation/OpenCode path, which never
+#                                meets the evaluator's inbound scan)
+#   VIGIL_SCAN_OUT=1             Occludra scans completed responses (JSON body or accumulated SSE
+#                                deltas) via /analyze/response — log + metric only, never blocks
+#   VIGIL_IN_ACTION=block        an inbound detection answers 403 vigil_block instead of proxying
+#                                (default: log)
+#   VIGIL_URL                    Occludra's Vigil /analyze/prompt endpoint (default: in-cluster
+#                                vigil-service; keep the /analyze/prompt suffix — the response
+#                                endpoint is derived by swapping it for /analyze/response)
 #   ---- workstation exposure (opt-in) ----
 #   WORKSTATION_NODEPORT=1       publish Occludra (30080) and Vigil (30500) as NodePorts plus an
 #                                ingress NetworkPolicy, so docker containers on the programmer's
@@ -296,6 +307,17 @@ if [ "$DEPLOY_SECURITY_GATEWAYS" = "1" ]; then
   else
     substitute_gateway_images < manifests/occludra-deployment.yaml | filter_mesh_sidecars | kubectl apply -f -
     substitute_gateway_images < manifests/vigil-deployment.yaml | filter_mesh_sidecars | kubectl apply -f -
+  fi
+  # Two-sided Vigil scanning in Occludra (opt-in env passthrough): the
+  # manifest defaults keep scanning OFF; `set env` only fires when at least
+  # one VIGIL_* knob is explicit, so existing deploys are unchanged.
+  vigil_env=()
+  for knob in VIGIL_SCAN_IN VIGIL_SCAN_OUT VIGIL_IN_ACTION VIGIL_URL; do
+    if [ -n "${!knob:-}" ]; then vigil_env+=("$knob=${!knob}"); fi
+  done
+  if [ "${#vigil_env[@]}" -gt 0 ]; then
+    kubectl -n security-gateways set env deploy/occludra "${vigil_env[@]}" >/dev/null
+    echo "Occludra Vigil scanning enabled: ${vigil_env[*]}"
   fi
   if [ "$MESH_ENFORCE" != "true" ]; then
     echo "NOTE: MESH_ENFORCE=false — NetBird enrollment secrets skipped." >&2
