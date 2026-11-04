@@ -28,10 +28,11 @@ var (
 	redactions     = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "occludra_redactions_total", Help: "Strings redacted by configured detector."}, []string{"detector"})
 	blocked        = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "occludra_blocked_requests_total", Help: "Requests blocked by policy."}, []string{"reason"})
 	failovers      = prometheus.NewCounter(prometheus.CounterOpts{Name: "occludra_upstream_failovers_total", Help: "Requests retried against the secondary provider."})
+	vigilScans     = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "occludra_vigil_scans_total", Help: "Vigil prompt/response scans by direction and verdict (detect/clean/error/skipped)."}, []string{"direction", "verdict"})
 )
 
 func init() {
-	prometheus.MustRegister(requests, durations, activeRequests, redactions, blocked, failovers)
+	prometheus.MustRegister(requests, durations, activeRequests, redactions, blocked, failovers, vigilScans)
 }
 
 func setupTracing() func() {

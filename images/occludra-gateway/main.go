@@ -16,6 +16,10 @@
 //	                            (default https://opencode.ai/zen/v1)
 //	OCCLUDRA_UPSTREAM_API_KEY   upstream key (falls back to OPENCODE_API_KEY,
 //	                            then ANTHROPIC_API_KEY)
+//	VIGIL_SCAN_IN / VIGIL_SCAN_OUT / VIGIL_IN_ACTION / VIGIL_URL /
+//	VIGIL_RESPONSE_URL / VIGIL_TIMEOUT_MS   optional two-sided Vigil
+//	                            prompt-injection scanning (see vigil.go);
+//	                            unset/0 keeps the gateway byte-identical
 //
 // Logging counts and classifies redactions only — prompt content is never
 // written to the gateway log.
@@ -148,6 +152,10 @@ type gateway struct {
 	fallbackKey  string
 	client       *http.Client
 	inflight     *inflightLimiter
+	// Optional two-sided Vigil prompt-injection scanning (see vigil.go).
+	// Nil = fully disabled; request and response handling is then
+	// byte-identical to a gateway without the feature.
+	vigil        *vigilConfig
 }
 
 // currentPolicy loads the policy file on demand. ConfigMap volume updates
@@ -218,12 +226,17 @@ func main() {
 		log.Printf("upstream failover enabled: %s → %s", base, fallbackBase)
 	}
 
+	// Optional two-sided Vigil scanning (VIGIL_SCAN_IN/VIGIL_SCAN_OUT):
+	// nil unless explicitly enabled, so default deploys are unchanged.
+	vigil := newVigilConfigFromEnv()
+
 	g := &gateway{
 		policyPath:   policyPath,
 		upstreamBase: base,
 		upstreamKey:  key,
 		fallbackBase: fallbackBase,
 		fallbackKey:  fallbackKey,
+		vigil:        vigil,
 		inflight:     newInflightLimiter(envInt("OCCLUDRA_MAX_INFLIGHT", 64)),
 		client: &http.Client{
 			// SSE completions legitimately stream for minutes; the timeout
@@ -276,6 +289,9 @@ func main() {
 	addr := server.Addr
 	log.Printf("occludra gateway listening on %s → upstream %s (policy %s, %d detectors)",
 		addr, base, policyPath, len(policy.Detectors))
+	if vigil != nil {
+		log.Printf("vigil two-sided scanning enabled: in=%t out=%t action=%s", vigil.scanIn, vigil.scanOut, vigil.inAction)
+	}
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
@@ -381,6 +397,20 @@ func (g *gateway) serveChatCompletions(w http.ResponseWriter, r *http.Request) {
 		redactions.WithLabelValues(detector).Add(float64(count))
 	}
 	normalizeToolChoice(obj)
+
+	// Two-sided Vigil scanning — inbound leg: scan the (already redacted)
+	// message text before the request leaves the cluster. Fail-soft: any
+	// Vigil trouble passes through; only a detection combined with
+	// VIGIL_IN_ACTION=block stops the request here.
+	if g.vigil != nil && g.vigil.scanIn {
+		if detected := g.vigilScan("in", extractRequestText(obj)); detected && g.vigil.inAction == "block" {
+			log.Printf("vigil direction=in action=block: not proxying request")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"error":{"message":"prompt injection detected by vigil","type":"vigil_block"}}`))
+			return
+		}
+	}
 
 	redacted, err := json.Marshal(payload)
 	if err != nil {
@@ -575,22 +605,41 @@ func (g *gateway) proxy(w http.ResponseWriter, r *http.Request, body []byte, con
 
 	isInference := markerApplies(incoming)
 	isSSE := strings.HasPrefix(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream")
+	marker := responseMarkerEnabled()
+	// Outbound Vigil leg: active only for inference responses with a usable
+	// response endpoint; log+metric only — the response itself is never
+	// mutated or blocked.
+	vigilOut := isInference && g.vigil != nil && g.vigil.scanOut && g.vigil.responseURL != ""
 
 	// Non-streaming JSON inference response: buffer (bounded), append the
-	// marker to the last message, forward.
-	if responseMarkerEnabled() && isInference && !isSSE {
+	// marker to the last message and/or out-scan the assistant text,
+	// forward.
+	if isInference && !isSSE && (marker || vigilOut) {
 		limited := io.LimitReader(resp.Body, maxBodyBytes)
 		bodyBytes, err := io.ReadAll(limited)
 		if err != nil {
 			http.Error(w, "reading upstream response failed", http.StatusBadGateway)
 			return
 		}
-		bodyBytes = appendMarkerToJSON(bodyBytes)
+		var scanText string
+		if vigilOut {
+			// Extracted BEFORE the marker is appended: the scan sees the
+			// upstream text, not the gateway's own suffix.
+			scanText = assistantTextFromJSON(bodyBytes)
+		}
+		if marker {
+			bodyBytes = appendMarkerToJSON(bodyBytes)
+		}
 		w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(bodyBytes)))
-		w.Header().Set("X-Occludra-Proxy", "true")
+		if marker {
+			w.Header().Set("X-Occludra-Proxy", "true")
+		}
 		w.WriteHeader(resp.StatusCode)
 		_, _ = w.Write(bodyBytes)
+		if vigilOut {
+			g.vigilScan("out", scanText)
+		}
 		return
 	}
 
@@ -602,25 +651,40 @@ func (g *gateway) proxy(w http.ResponseWriter, r *http.Request, body []byte, con
 			w.Header().Add(name, v)
 		}
 	}
-	if responseMarkerEnabled() && isInference {
+	if marker && isInference {
 		w.Header().Set("X-Occludra-Proxy", "true")
 	}
 	w.WriteHeader(resp.StatusCode)
 	flusher, _ := w.(http.Flusher)
-	if isSSE && responseMarkerEnabled() && isInference {
-		// Line-oriented pass-through with terminal-event interception —
-		// the stream stays live, only the final event is held back long
-		// enough to inject the marker before it.
-		injector := newSSEMarkerInjector(isInference)
+	if isSSE && isInference && (marker || vigilOut) {
+		// Line-oriented pass-through — the stream stays live. The marker
+		// injector holds back only the terminal event long enough to inject
+		// the marker before it; the Vigil collector passively accumulates
+		// the text deltas so the single out-scan fires once the stream
+		// ends (after the client already saw every byte).
+		collector := &sseTextCollector{}
+		var injector *sseMarkerInjector
+		if marker {
+			injector = newSSEMarkerInjector(isInference)
+		}
 		scanner := bufio.NewScanner(resp.Body)
 		scanner.Buffer(make([]byte, 0, 64*1024), maxBodyBytes)
 		for scanner.Scan() {
-			for _, out := range injector.transform(scanner.Text()) {
-				fmt.Fprintln(w, out)
+			line := scanner.Text()
+			collector.line(line)
+			if injector != nil {
+				for _, out := range injector.transform(line) {
+					fmt.Fprintln(w, out)
+				}
+			} else {
+				fmt.Fprintln(w, line)
 			}
 			if flusher != nil {
 				flusher.Flush()
 			}
+		}
+		if vigilOut {
+			g.vigilScan("out", collector.text())
 		}
 		return
 	}
