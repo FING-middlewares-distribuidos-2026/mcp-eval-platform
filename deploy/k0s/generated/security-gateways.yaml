@@ -424,8 +424,8 @@ data:
     \ + vectordb) of a long tool output on the\n  # PC's CPU takes seconds; the evaluator waits up to VIGIL_TIMEOUT_MS.\n\
     \  proxy_read_timeout 300s;\n  proxy_connect_timeout 5s;\n\n  location = /healthz {\n    access_log off;\n    return 200\
     \ \"ok\\n\";\n  }\n  location ~ ^/analyze/(prompt|response)$ {\n    limit_except POST { deny all; }\n    proxy_set_header\
-    \ Authorization \"Bearer ${VIGIL_REMOTE_TOKEN}\";\n    proxy_pass ${VIGIL_REMOTE_URL};\n  }\n  location = /settings {\n\
-    \    limit_except GET { deny all; }\n    proxy_set_header Authorization \"Bearer ${VIGIL_REMOTE_TOKEN}\";\n    proxy_pass\
+    \ Authorization \"Bearer ${VIGIL_REMOTE_TOKEN}\";\n    proxy_pass ${VIGIL_REMOTE_URL};\n  }\n  location = /ready {\n \
+    \   limit_except GET { deny all; }\n    proxy_set_header Authorization \"Bearer ${VIGIL_REMOTE_TOKEN}\";\n    proxy_pass\
     \ ${VIGIL_REMOTE_URL};\n  }\n  location / {\n    return 403;\n  }\n}\n"
 ---
 apiVersion: apps/v1
@@ -485,7 +485,7 @@ spec:
           containerPort: 5000
         readinessProbe:
           httpGet:
-            path: /settings
+            path: /ready
             port: http
           periodSeconds: 15
           timeoutSeconds: 10
