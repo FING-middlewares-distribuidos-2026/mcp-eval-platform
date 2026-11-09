@@ -402,3 +402,24 @@ Decisions made before this log existed are not back-filled here.
 - **Who decided:** Juan (redesign, option B permissions, owning the front);
   Claude (git-managed servers cannot be paused/deleted from the UI, a cap of
   20 UI-created servers, same-origin check on every write route).
+
+### 2026-11-09 — The GPU PC serves APIs; it is no longer a cluster node
+- **Decision:** the PC stops joining k0s (`hack/gpu-node` archived). It runs
+  the LLM and Vigil as containers (`hack/pc-services/pc up`) on its
+  ZeroTier address, each behind a bearer token. The cluster keeps a small
+  nginx relay as `vigil-service` (same name and labels, so no client or
+  policy changes) that adds the token; the PC's Vigil reads Chroma through
+  Traefik (`/chroma`, reader token still checked by chroma-gateway). The
+  operator goes back to the workers, without leader election. The
+  2026-10-28 runtime tuning moves into git so Flux can be resumed.
+- **Reason:** as a node the PC dragged in Calico, kubelet's disk-pressure
+  thresholds (15 % of a shared 357 GB disk) and the control plane's slow
+  etcd; the LLM already worked as a plain API.
+- **Alternatives:** NodePort restricted to the PC for Chroma (more IP
+  wiring); Vigil without its vector scanner; ZeroTier-only access without
+  tokens.
+- **Who decided:** Juan (APIs instead of a node, Traefik route for Chroma,
+  tokens on both APIs, keep the gpu-node script archived); Claude (nginx
+  for both token checks, entering Traefik by NodePort over ZeroTier with
+  the certificate pinned to the ingress IP, since the university gateway
+  that routes 10.66.51.11 goes down).

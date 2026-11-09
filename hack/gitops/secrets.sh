@@ -24,6 +24,11 @@
 #   security-gateways/occludra-external-tokens   with DEPLOY_INGRESS=1: bearer token for OpenCode clients
 #                                                outside the cluster (https://INGRESS_IP/llm/v1). Token in
 #                                                ~/.config/mcp-eval/llm-gateway-token (0600).
+#   security-gateways/vigil-remote-token         with VIGIL_REMOTE_URL: bearer token the in-cluster relay
+#                                                sends to the GPU PC's Vigil (hack/pc-services reads the
+#                                                same file). Token in ~/.config/mcp-eval/vigil-api-token (0600).
+#   ~/.config/mcp-eval/chroma-reader-token       with VIGIL_REMOTE_URL: a local copy (0600) of Chroma's reader
+#                                                token, for the PC's Vigil (not a Secret; written when missing)
 # Key values travel through pipes only: never on argv, never printed.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -33,6 +38,8 @@ k() { kubectl ${CONTEXT:+--context "$CONTEXT"} "$@"; }
 LLM_PROVIDER="$(. "$dir/render.env"; echo "${LLM_PROVIDER:-zen}")"
 read -r DEPLOY_INGRESS DEPLOY_UI INGRESS_IP < <(. "$dir/render.env"
   range="${INGRESS_IP_RANGE:-}"; echo "${DEPLOY_INGRESS:-0} ${DEPLOY_UI:-0} ${INGRESS_IP:-${range%%-*}}")
+VIGIL_REMOTE_URL="$(. "$dir/render.env"; echo "${VIGIL_REMOTE_URL:-}")"
+conf="$HOME/.config/mcp-eval"
 
 for ns in chroma security-gateways mcp-evals; do
   k create namespace "$ns" --dry-run=client -o yaml | k apply -f - >/dev/null
@@ -95,8 +102,24 @@ for d in yaml.safe_load_all(open("manifests/chroma/minio.yaml")):
   echo "minio-credentials written"
 fi
 
+if [ -n "$VIGIL_REMOTE_URL" ] && ! k -n security-gateways get secret vigil-remote-token >/dev/null 2>&1; then
+  mkdir -p "$conf" && chmod 700 "$conf"
+  tokfile="$conf/vigil-api-token"
+  if [ ! -s "$tokfile" ]; then
+    ( umask 077; python3 -c 'import secrets; print(secrets.token_urlsafe(32))' > "$tokfile" )
+  fi
+  tr -d '\n' < "$tokfile" | k -n security-gateways create secret generic vigil-remote-token \
+    --from-file=token=/dev/stdin --dry-run=client -o yaml | k apply -f - >/dev/null
+  echo "vigil-remote-token written (token in $tokfile; hack/pc-services reads it)"
+fi
+if [ -n "$VIGIL_REMOTE_URL" ] && [ ! -s "$conf/chroma-reader-token" ]; then
+  mkdir -p "$conf" && chmod 700 "$conf"
+  ( umask 077; k -n chroma get secret chroma-auth -o jsonpath='{.data.reader-token}' | base64 -d > "$conf/chroma-reader-token" )
+  [ -s "$conf/chroma-reader-token" ] || { rm -f "$conf/chroma-reader-token"; echo "chroma-auth has no reader-token" >&2; exit 1; }
+  echo "chroma reader token copied to $conf/chroma-reader-token (for hack/pc-services)"
+fi
+
 if [ "$DEPLOY_INGRESS" = "1" ]; then
-  conf="$HOME/.config/mcp-eval"
   mkdir -p "$conf" && chmod 700 "$conf"
   k apply -f manifests/ingress/namespaces.yaml >/dev/null
   k create namespace mcp-eval-ui --dry-run=client -o yaml | k apply -f - >/dev/null

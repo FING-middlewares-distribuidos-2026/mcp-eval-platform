@@ -1,0 +1,21 @@
+# The k0s control plane's etcd answers writes slowly at times (~1.4 s,
+# 2026-10-28): leader-election renewals then miss their deadline and the
+# operator restarts mid-run. One replica needs no election, so it runs
+# without it, and Recreate makes sure two never overlap during a rollout.
+# Vigil runs on the GPU PC's CPU (hack/pc-services): scans of long tool
+# output take longer than in a dedicated pod.
+- op: replace
+  path: /spec/strategy
+  value: {type: Recreate}
+- op: replace
+  path: /spec/template/spec/containers/0/args
+  value:
+    - --health-probe-bind-address=:8081
+    - --metrics-bind-address=:8443
+    - --activity-bind-address=:8082
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value: {name: VIGIL_TIMEOUT_MS, value: "180000"}
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value: {name: STUCK_PENDING_AFTER, value: "15m"}

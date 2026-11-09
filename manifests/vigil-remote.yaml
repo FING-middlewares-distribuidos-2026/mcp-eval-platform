@@ -1,0 +1,189 @@
+# ---------------------------------------------------------------------------
+# Vigil outside the cluster (VIGIL_REMOTE_URL, deploy.sh): the scanner runs
+# on the GPU PC as a container (hack/pc-services) and this relay takes the
+# place of the in-cluster Vigil.
+#
+# Same names and labels as manifests/vigil-deployment.yaml (Deployment
+# `vigil`, Service `vigil-service`, pods app.kubernetes.io/name=vigil-llm),
+# so Occludra, the operator, the evaluator and every NetworkPolicy that
+# names Vigil keep working unchanged: they still call
+# http://vigil-service.security-gateways:5000.
+#
+# The relay adds the PC's bearer token (Secret vigil-remote-token, created
+# by hack/gitops/secrets.sh, never in git) and forwards only the two calls
+# the platform makes (POST /analyze/prompt, /analyze/response) plus
+# GET /ready for the readiness probe. The PC's own proxy checks the
+# token and allows the same paths (hack/pc-services/vigil-auth.conf.template).
+#
+# PC down -> the relay answers 502 and the probe takes it out of the
+# Service -> clients fail closed, as with the in-cluster Vigil.
+#
+# __VIGIL_REMOTE_URL__ (http://<PC ZeroTier IP>:<port>) and
+# __VIGIL_REMOTE_CIDR__ (<IP>/32) are substituted by deploy.sh.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vigil-relay
+  namespace: security-gateways
+  labels:
+    app.kubernetes.io/name: vigil-llm
+    app.kubernetes.io/part-of: mcp-eval-platform
+data:
+  # Rendered by the nginx image's envsubst step; only variables present in
+  # the environment are substituted, nginx's own $variables are left alone.
+  default.conf.template: |
+    server {
+      listen 5000;
+      server_tokens off;
+      client_max_body_size 4m;
+      # A full scan (transformer + vectordb) of a long tool output on the
+      # PC's CPU takes seconds; the evaluator waits up to VIGIL_TIMEOUT_MS.
+      proxy_read_timeout 300s;
+      proxy_connect_timeout 5s;
+
+      location = /healthz {
+        access_log off;
+        return 200 "ok\n";
+      }
+      location ~ ^/analyze/(prompt|response)$ {
+        limit_except POST { deny all; }
+        proxy_set_header Authorization "Bearer ${VIGIL_REMOTE_TOKEN}";
+        proxy_pass ${VIGIL_REMOTE_URL};
+      }
+      location = /ready {
+        limit_except GET { deny all; }
+        proxy_set_header Authorization "Bearer ${VIGIL_REMOTE_TOKEN}";
+        proxy_pass ${VIGIL_REMOTE_URL};
+      }
+      location / {
+        return 403;
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vigil
+  namespace: security-gateways
+  labels:
+    app.kubernetes.io/name: vigil-llm
+    app.kubernetes.io/component: prompt-scanner
+    app.kubernetes.io/part-of: mcp-eval-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vigil-llm
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vigil-llm
+        app.kubernetes.io/component: prompt-scanner
+        security.eval.io/vigil-mode: remote
+    spec:
+      priorityClassName: mcp-eval-critical
+      serviceAccountName: vigil
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: relay
+          image: nginxinc/nginx-unprivileged:1.29.1-alpine@sha256:27985295bdb22a1ef8f712863210bd5877c0f3006494a593e86b3fe0fa55467e
+          # An empty token would make "Bearer " the credential: refuse to start.
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              [ "${#VIGIL_REMOTE_TOKEN}" -ge 32 ] || { echo "vigil-relay: token missing or shorter than 32 chars" >&2; exit 1; }
+              exec /docker-entrypoint.sh nginx -g 'daemon off;'
+          env:
+            - name: VIGIL_REMOTE_URL
+              value: __VIGIL_REMOTE_URL__
+            - name: VIGIL_REMOTE_TOKEN
+              valueFrom: {secretKeyRef: {name: vigil-remote-token, key: token}}
+          ports:
+            - name: http
+              containerPort: 5000
+          # Ready only while the PC's Vigil answers through its token check.
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 2
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 250m, memory: 64Mi}
+          volumeMounts:
+            - {name: templates, mountPath: /etc/nginx/templates, readOnly: true}
+            - {name: confd, mountPath: /etc/nginx/conf.d}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: templates
+          configMap:
+            name: vigil-relay
+        - name: confd
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vigil-service
+  namespace: security-gateways
+  labels:
+    app.kubernetes.io/name: vigil-llm
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: vigil-llm
+  ports:
+    - name: http
+      port: 5000
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vigil
+  namespace: security-gateways
+  labels:
+    app.kubernetes.io/name: vigil-llm
+automountServiceAccountToken: false
+---
+# The relay's only way out: the PC's Vigil port. (gateway-egress, which
+# selects all pods here, opens nothing towards private addresses but
+# NetBird ports.)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vigil-relay-egress
+  namespace: security-gateways
+  labels:
+    app.kubernetes.io/part-of: mcp-eval-platform
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vigil-llm
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: __VIGIL_REMOTE_CIDR__
+      ports:
+        - protocol: TCP
+          port: __VIGIL_REMOTE_PORT__

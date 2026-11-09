@@ -82,7 +82,9 @@ query_service:
             name: "block_cache"
             # 1k blocks * 8MiB = 8GiB, this is actually ignored in the disk cache config. Leaving it set to 1k for consistency.
             capacity: 1000
-            mem: 8000 # 8GiB
+            # In-memory part of the block cache. Upstream ships 8 GiB; the
+            # query node runs in 2 GiB on 3.9 GB workers (deploy/k0s).
+            mem: 700 # MiB
             disk: 12884 # 12GiB
             file_size: 256 #  256 MiB
             flushers: 4

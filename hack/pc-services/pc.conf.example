@@ -1,0 +1,33 @@
+# hack/pc-services configuration TEMPLATE. Copy it and adjust:
+#
+#   cp hack/pc-services/pc.conf.example hack/pc-services/pc.conf
+#
+# pc.conf is git-ignored (machine specifics). No secrets here: tokens are
+# read from ~/.config/mcp-eval (see README.md). Any variable can also be
+# exported before running `pc`.
+
+# This PC's address on the platform's ZeroTier network: the only address
+# the LLM and Vigil listen on (the cluster's NetworkPolicies allow exactly it).
+PC_IP="${PC_IP:-10.147.17.21}"
+# Optional extra address:port for the LLM only (e.g. another ZeroTier
+# network, for a laptop's OpenCode). Empty: none.
+LLM_EXTRA_BIND="${LLM_EXTRA_BIND:-}"
+LLM_PORT="${LLM_PORT:-8080}"
+VIGIL_PORT="${VIGIL_PORT:-5000}"
+
+# --- LLM (llama.cpp) --------------------------------------------------------
+LLM_MODEL="${LLM_MODEL:-$HOME/AI/models/gemma-4-12b-it/gemma-4-12b-it-UD-Q4_K_XL.gguf}"
+LLM_MODEL_ALIAS="${LLM_MODEL_ALIAS:-gemma-4-12b-it}"   # = LLM_MODEL in deploy/k0s/render.env
+LLM_CTX="${LLM_CTX:-65536}"
+LLM_REASONING_BUDGET="${LLM_REASONING_BUDGET:-0}"
+
+# --- Vigil -----------------------------------------------------------------
+# Default: the image CI built for the commit deploy/k0s/render.env names.
+VIGIL_IMAGE="${VIGIL_IMAGE:-}"
+# The cluster's Chroma, through Traefik's websecure NodePort on a node's
+# ZeroTier address (the ingress IP itself is routed by the university's
+# ZeroTier gateway, which goes down). The certificate is checked against
+# the ingress IP it was issued for.
+CHROMA_URL="${CHROMA_URL:-https://10.147.17.228:31365/chroma}"
+CHROMA_TLS_NAME="${CHROMA_TLS_NAME:-10.66.51.11}"
+INGRESS_CA="${INGRESS_CA:-$HOME/.config/mcp-eval/ingress-cert.pem}"
