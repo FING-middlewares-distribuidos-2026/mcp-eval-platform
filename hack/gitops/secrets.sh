@@ -21,6 +21,9 @@
 #                                                the UI. Login in ~/.config/mcp-eval/ui-login (user:password,
 #                                                0600), generated once (UI_USER, default "mcp"); delete
 #                                                that file and the Secret to rotate it.
+#   security-gateways/occludra-external-tokens   with DEPLOY_INGRESS=1: bearer token for OpenCode clients
+#                                                outside the cluster (https://INGRESS_IP/llm/v1). Token in
+#                                                ~/.config/mcp-eval/llm-gateway-token (0600).
 # Key values travel through pipes only: never on argv, never printed.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -128,5 +131,16 @@ if [ "$DEPLOY_INGRESS" = "1" ]; then
     printf '%s:%s\n' "$user" "$hash" | k -n mcp-eval-ui create secret generic ui-basic-auth \
       --from-file=users=/dev/stdin --dry-run=client -o yaml | k apply -f - >/dev/null
     echo "ui-basic-auth written (login in $login)"
+  fi
+  # Bearer token for OpenCode clients outside the cluster
+  # (manifests/ingress/llm-gateway.yaml): https://$INGRESS_IP/llm/v1.
+  if ! k -n security-gateways get secret occludra-external-tokens >/dev/null 2>&1; then
+    tokfile="$conf/llm-gateway-token"
+    if [ ! -s "$tokfile" ]; then
+      ( umask 077; python3 -c 'import secrets; print("occ-" + secrets.token_urlsafe(32))' > "$tokfile" )
+    fi
+    k -n security-gateways create secret generic occludra-external-tokens \
+      --from-file=tokens="$tokfile" --dry-run=client -o yaml | k apply -f - >/dev/null
+    echo "occludra-external-tokens written (token in $tokfile)"
   fi
 fi

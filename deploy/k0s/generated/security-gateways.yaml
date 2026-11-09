@@ -19,30 +19,42 @@ data:
     \ generic high-entropy\n    # assignment-style secrets commonly leaked by MCP tool output.\n    type: regex\n    pattern:\
     \ '(sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|xox[bpars]-[A-Za-z0-9-]{10,}|-----BEGIN\
     \ [A-Z ]*PRIVATE KEY-----)'\n    action: redact\n  - name: bearer-token\n    type: regex\n    pattern: '(?i)\\b(bearer|authorization)[:=\
-    \ ]+[A-Za-z0-9._~+/=-]{16,}'\n    action: redact\n  - name: password-context\n    # Natural-language secret disclosure:\
-    \ \"the password is X\", \"passwd:\n    # X\". Catches high-entropy strings no keyword-prefix detector sees.\n    type:\
-    \ regex\n    pattern: '(?i)\\b(pass ?words?|passphrases?|passcodes?|passwd)\\b\\s*(?:is|are|:|=)\\s*\\S{6,}'\n    action:\
-    \ redact\n  - name: secret-assignment\n    # Assignment-style disclosures of generic secrets: \"api key = X\",\n    #\
-    \ \"secret: X\" (egress twin of vigil's credential-harvest pattern).\n    type: regex\n    pattern: '(?i)\\b(api[_ -]?keys?|secrets?|tokens?|credentials?)\\\
-    b\\s*(?:is|are|:|=)\\s*\\S{8,}'\n    action: redact\n  - name: email\n    type: regex\n    pattern: '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\\
-    .[A-Za-z]{2,}'\n    action: redact\n  - name: us-ssn\n    type: regex\n    pattern: '\\b[0-9]{3}-[0-9]{2}-[0-9]{4}\\b'\n\
-    \    action: redact\n  - name: iban\n    type: regex\n    pattern: '\\b[A-Z]{2}[0-9]{2}[A-Z0-9]{10,30}\\b'\n    action:\
-    \ redact\n  - name: phone-intl\n    type: regex\n    pattern: '(\\+?[0-9][0-9()\\-\\s]{7,}[0-9])'\n    action: redact\n\
-    \  - name: person-name-context\n    # Person names introduced by a relationship role: \"customer, Richard\n    # Philips\"\
-    . Bare names stay out of scope (too many false positives);\n    # the role word is the PII signal.\n    type: regex\n\
-    \    pattern: '(?i)\\b(customers?|clients?|patients?|employees?|subscribers?|beneficiaries?)\\s*,?\\s+(?:mr\\.?|mrs\\\
-    .?|ms\\.?|dr\\.?)?\\s*[A-Z][a-z]+\\s+[A-Z][a-z]+'\n    action: redact\n  - name: large-amount\n    # Financial magnitudes:\
-    \ 6+ digit bare amounts (\"1300201\") and\n    # comma-grouped amounts (\"1,300,201\"). Order ids can collide; a\n   \
-    \ # security egress defaults to redact.\n    type: regex\n    pattern: '\\b[0-9]{6,}\\b|\\b[0-9]{1,3}(,[0-9]{3})+\\b(\\\
-    .[0-9]{2})?'\n    action: redact\n  - name: currency-amount\n    type: regex\n    pattern: '(?:\\$|\u20AC|\xA3|USD|EUR)\\\
+    \ ]+[A-Za-z0-9._~+/=-]{16,}'\n    action: redact\n  - name: password-context\n    # Natural-language secret disclosure,\
+    \ English and Spanish: \"the\n    # password is X\", \"passwd: X\", \"mi contrase\xF1a es X\". Up to three words\n   \
+    \ # may sit between the keyword and the verb (\"password for the db is\",\n    # \"contrase\xF1a del servidor es\"). Catches\
+    \ high-entropy strings no\n    # keyword-prefix detector sees.\n    type: regex\n    pattern: '(?i)\\b(pass ?words?|passphrases?|passcodes?|passwd|contrase\xF1\
+    as?)\\b(?:\\s+[^\\s:=]{1,20}){0,3}?\\s*(?:is|are|es|son|era|:|=)\\s*\\S{6,}'\n    action: redact\n  - name: password-context-ambiguous\n\
+    \    # \"clave\" and \"pass\" are also ordinary words (\"la clave del problema\n    # es entender...\"), so the value\
+    \ must look like a password: it has to\n    # carry a digit or a symbol. \"clave=Sup3rS3creta!2026\" is masked,\n    #\
+    \ \"la clave es entender\" is not.\n    type: regex\n    pattern: '(?i)\\b(claves?|pass)\\b(?:\\s+[^\\s:=]{1,20}){0,3}?\\\
+    s*(?:is|es|era|:|=)\\s*[^\\s]*[0-9_!@#$%&*+=/\\\\-][^\\s]*'\n    action: redact\n  - name: secret-assignment\n    # Assignment-style\
+    \ disclosures of generic secrets, English and\n    # Spanish: \"api key = X\", \"secret: X\", \"el token es X\", \"mi\n\
+    \    # credencial: X\" (egress twin of vigil's credential-harvest pattern).\n    type: regex\n    pattern: '(?i)\\b(api[_\
+    \ -]?keys?|secrets?|secretos?|tokens?|credentials?|credenciales?|llaves?)\\b(?:\\s+[^\\s:=]{1,20}){0,3}?\\s*(?:is|are|es|son|:|=)\\\
+    s*\\S{8,}'\n    action: redact\n  - name: email\n    type: regex\n    pattern: '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}'\n\
+    \    action: redact\n  - name: us-ssn\n    type: regex\n    pattern: '\\b[0-9]{3}-[0-9]{2}-[0-9]{4}\\b'\n    action: redact\n\
+    \  - name: iban\n    type: regex\n    pattern: '\\b[A-Z]{2}[0-9]{2}[A-Z0-9]{10,30}\\b'\n    action: redact\n  - name:\
+    \ phone-intl\n    type: regex\n    pattern: '(\\+?[0-9][0-9()\\-\\s]{7,}[0-9])'\n    action: redact\n  - name: person-name-context\n\
+    \    # Person names introduced by a relationship role: \"customer, Richard\n    # Philips\". Bare names stay out of scope\
+    \ (too many false positives);\n    # the role word is the PII signal.\n    type: regex\n    pattern: '(?i)\\b(customers?|clients?|patients?|employees?|subscribers?|beneficiaries?)\\\
+    s*,?\\s+(?:mr\\.?|mrs\\.?|ms\\.?|dr\\.?)?\\s*[A-Z][a-z]+\\s+[A-Z][a-z]+'\n    action: redact\n  - name: large-amount\n\
+    \    # Financial magnitudes: 6+ digit bare amounts (\"1300201\") and\n    # comma-grouped amounts (\"1,300,201\"). Order\
+    \ ids can collide; a\n    # security egress defaults to redact.\n    type: regex\n    pattern: '\\b[0-9]{6,}\\b|\\b[0-9]{1,3}(,[0-9]{3})+\\\
+    b(\\.[0-9]{2})?'\n    action: redact\n  - name: currency-amount\n    type: regex\n    pattern: '(?:\\$|\u20AC|\xA3|USD|EUR)\\\
     s?[0-9][0-9,]*'\n    action: redact\nmodels:\n  # Model allowlist: requests for anything not listed are rejected with\n\
     \  # 403 before any upstream connection is attempted. NOTE: OpenCode\n  # addresses the upstream with the BARE model id\
     \ (the `provider/`\n  # prefix exists only inside agent specs), so patterns match bare ids.\n  allow:\n    - \"^gemma\\\
     \\-4\\\\-12b\\\\-it$\"   # LLM_PROVIDER=local (deploy.sh)\n    # OpenCode Zen (free ids end in -free; paid ids like\n\
     \    # claude-sonnet-4-6) and Anthropic/OpenAI direct naming.\n    - \"^(claude|muse|grok|kimi|qwen|glm|deepseek|gemini|minimax|step)\"\
     \n    - \".*-free\"\n    - \"^o[1345]\"\n    - \"^gpt\"\n    # NVIDIA NIM ids carry the publisher prefix (z-ai/glm-5.3,\
-    \ ...).\n    - \"^(z-ai|moonshotai|deepseek-ai|nvidia|meta|mistralai|qwen|openai|google)/\"\nlogging:\n  # Never persist\
-    \ prompt content in gateway logs; count and classify only.\n  log_prompts: false\n  log_redactions: true\n"
+    \ ...).\n    - \"^(z-ai|moonshotai|deepseek-ai|nvidia|meta|mistralai|qwen|openai|google)/\"\ninjection:\n  # Prompt-injection\
+    \ screening with Vigil, both ways (injection.go): the\n  # turn a client sends is scanned before it goes upstream, and\
+    \ the\n  # model's answer is held and scanned before it is released. Only these\n  # clients (X-Occludra-Client) are screened:\
+    \ the UI chat and OpenCode\n  # clients from outside the cluster (manifests/ingress/llm-gateway.yaml).\n  # Evaluation\
+    \ traffic names no client: the evaluator scans MCP output\n  # with Vigil itself, and its prompts quote the hostile MCP\
+    \ on purpose.\n  clients: [\"ui-chat\", \"external\"]\n  scan_requests: true\n  scan_responses: true\n  # Vigil down or\
+    \ erroring: refuse (block) rather than pass unscreened.\n  on_vigil_error: block\nlogging:\n  # Never persist prompt content\
+    \ in gateway logs; count and classify only.\n  log_prompts: false\n  log_redactions: true\n"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -118,6 +130,16 @@ spec:
           value: http://10.147.17.21:8080/v1
         - name: OCCLUDRA_MAX_INFLIGHT
           value: '64'
+        - name: OCCLUDRA_VIGIL_URL
+          value: http://vigil-service.security-gateways.svc.cluster.local:5000
+        - name: OCCLUDRA_VIGIL_TIMEOUT_MS
+          value: '90000'
+        - name: OCCLUDRA_EXTERNAL_TOKENS
+          valueFrom:
+            secretKeyRef:
+              name: occludra-external-tokens
+              key: tokens
+              optional: true
         - name: OCCLUDRA_FALLBACK_UPSTREAM_BASE_URL
           value: ''
         - name: OCCLUDRA_FALLBACK_API_KEY
@@ -363,6 +385,13 @@ spec:
     ports:
     - protocol: TCP
       port: 443
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: vigil-llm
+    ports:
+    - protocol: TCP
+      port: 5000
   - to:
     - namespaceSelector:
         matchLabels:
@@ -795,3 +824,68 @@ spec:
     ports:
     - protocol: TCP
       port: 8081
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: llm-gateway-prefix
+  namespace: security-gateways
+spec:
+  stripPrefix:
+    prefixes:
+    - /llm
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: llm-gateway-client
+  namespace: security-gateways
+spec:
+  headers:
+    customRequestHeaders:
+      X-Occludra-Client: external
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: llm-gateway
+  namespace: security-gateways
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: 'true'
+    traefik.ingress.kubernetes.io/router.middlewares: security-gateways-llm-gateway-prefix@kubernetescrd,security-gateways-llm-gateway-client@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+  - http:
+      paths:
+      - path: /llm
+        pathType: Prefix
+        backend:
+          service:
+            name: occludra-service
+            port:
+              number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: occludra-from-traefik
+  namespace: security-gateways
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: occludra
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: traefik
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: traefik
+    ports:
+    - protocol: TCP
+      port: 8080

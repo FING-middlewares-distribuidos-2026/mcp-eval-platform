@@ -257,3 +257,35 @@ fieldset.field { border: 0; padding: 0; margin: 0; }
   .verdict-hero { grid-template-columns: minmax(0, 1fr); padding: var(--s4); }
   .stages, .field-row, .choice-row { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Chat protegido: connecting an outside OpenCode */
+.connect { padding: var(--s5); display: grid; gap: var(--s3); margin-top: var(--s6); }
+.connect h2 { font-size: var(--t-xl); }
+.connect-facts { display: flex; flex-wrap: wrap; gap: var(--s5); }
+.connect-facts dt { font-size: var(--t-sm); color: var(--muted); }
+.connect-facts dd { margin: 0; }
+.connect-config {
+  margin: 0; padding: var(--s3); overflow-x: auto; max-height: 22rem;
+  background: var(--surface-2); border-radius: var(--radius); font-size: var(--t-sm);
+}
+.connect .btn { justify-self: start; }
+.connect-note { font-size: var(--t-sm); }
+
+/* Registro de seguridad */
+.seclog-wrap { overflow-x: auto; }
+.seclog { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
+.seclog th { text-align: left; font-weight: 600; color: var(--muted); padding: var(--s2) var(--s3); border-bottom: 1px solid var(--line); }
+.seclog td { padding: var(--s3); border-bottom: 1px solid var(--line); vertical-align: top; }
+.seclog td .row-sub { display: block; }
+
+/* Cómo funciona: one block per functionality */
+.feature { display: grid; gap: var(--s4); margin-bottom: var(--s7); }
+.feature-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--s4); align-items: center; }
+.feature-head h2 { font-size: var(--t-xl); }
+.stage h3 { font-size: var(--t-md); margin-bottom: var(--s2); }
+@media (max-width: 640px) {
+  .feature-head { grid-template-columns: auto minmax(0, 1fr); }
+  .feature-head .btn { grid-column: 1 / -1; justify-self: start; }
+}
+.feature .stages { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+@media (max-width: 900px) { .feature .stages { grid-template-columns: minmax(0, 1fr); } }

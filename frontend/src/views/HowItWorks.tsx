@@ -1,92 +1,99 @@
-import { useEffect, useState } from "react";
-import { Conversation, Path } from "../components/ChatParts.tsx";
-import type { Mode } from "../data/source.ts";
-import { useChat } from "../data/useChat.ts";
+import { href } from "../router.ts";
 
-const STAGES: { name: string; what: string }[] = [
+interface Feature {
+  name: string;
+  question: string;
+  link: { label: string; to: string };
+  steps: { name: string; what: string }[];
+}
+
+const FEATURES: Feature[] = [
   {
-    name: "Caja aislada",
-    what: "El código del servidor se copia y se arranca en un contenedor sin internet. Solo puede hablar con los detectores de la plataforma.",
+    name: "Evaluar un MCP",
+    question: "¿Este servidor MCP es seguro para conectarlo a un agente de IA?",
+    link: { label: "Evaluar un MCP", to: href({ page: "servers" }) },
+    steps: [
+      {
+        name: "Caja aislada",
+        what: "El código del servidor se copia y se arranca en un contenedor sin internet. Solo puede hablar con los detectores de la plataforma.",
+      },
+      {
+        name: "Vigil",
+        what: "Lee todo lo que el servidor le diría a una IA (nombres y descripciones de herramientas, respuestas) y busca órdenes escondidas.",
+      },
+      {
+        name: "Cuatro agentes",
+        what: "Uno lee el código, otro lo prueba con pedidos raros, otro intenta que se porte mal y el último junta todo en un veredicto.",
+      },
+    ],
   },
   {
-    name: "Vigil",
-    what: "Lee todo lo que el servidor le diría a una IA (nombres y descripciones de herramientas, respuestas) y busca instrucciones escondidas. Si dos detectores coinciden, corta todo.",
+    name: "Tapar secretos",
+    question: "¿Puedo usar un modelo sin pasarle mis contraseñas y tokens?",
+    link: { label: "Chat protegido", to: href({ page: "chat" }) },
+    steps: [
+      {
+        name: "Occludra",
+        what: "Todo OpenCode que use la plataforma (el chat de acá o el tuyo, con la configuración que se muestra) habla con el modelo solo a través de Occludra.",
+      },
+      {
+        name: "Detectores",
+        what: "Antes de mandar nada, busca contraseñas, tokens, claves de API, emails y otros datos sensibles, en inglés y en castellano, y los reemplaza por [REDACTED].",
+      },
+    ],
   },
   {
-    name: "Cuatro agentes de IA",
-    what: "Uno lee el código, otro lo prueba con pedidos raros, otro intenta que se porte mal y el último junta todo en un veredicto.",
-  },
-  {
-    name: "Occludra",
-    what: "Es la única salida hacia el modelo. Antes de mandar código o respuestas del servidor, tapa claves, tokens, emails y otros datos sensibles.",
-  },
-  {
-    name: "El modelo",
-    what: "Gemma 4 12B, en la GPU de una PC del equipo. Nada se manda a un servicio en la nube.",
+    name: "Frenar prompt injection",
+    question: "¿Alguien le está metiendo órdenes escondidas al modelo, o el modelo me devuelve algo armado para manipularme?",
+    link: { label: "Registro de seguridad", to: href({ page: "security" }) },
+    steps: [
+      {
+        name: "A la ida",
+        what: "Vigil revisa el mensaje que sale hacia el modelo. Si encuentra un intento de manipularlo, Occludra no lo manda.",
+      },
+      {
+        name: "A la vuelta",
+        what: "La respuesta del modelo también pasa por Vigil antes de llegar a tu pantalla o a tu OpenCode. Si trae órdenes escondidas, no se muestra.",
+      },
+    ],
   },
 ];
 
-const EXAMPLES = [
-  "¿Qué es un servidor MCP, en una frase?",
-  "Mi mail es ana.perez@example.com y mi token ghp_1234567890abcdefghijklmnopqrstuvwxyzAB, ¿los ves?",
-];
-
-export function HowItWorks({ mode }: { mode: Mode }) {
-  const chat = useChat(null);
-  const [selected, setSelected] = useState<number | null>(null);
-  useEffect(() => {
-    const last = chat.turns[chat.turns.length - 1];
-    if (last) setSelected(last.id);
-  }, [chat.turns]);
-  const shown = chat.turns.find((t) => t.id === selected);
-
+export function HowItWorks() {
   return (
     <div className="page">
       <header className="page-head">
         <div>
           <h1>Cómo funciona</h1>
           <p className="page-lede">
-            Un servidor MCP le da herramientas a una IA. Si es malicioso, puede esconder órdenes para esa IA o sacar datos.
-            Esta plataforma lo revisa antes de que alguien lo conecte.
+            La plataforma hace tres cosas. Todo corre en un cluster de Kubernetes, y el modelo (Gemma 4 12B) en la GPU de una
+            PC del equipo: nada se manda a un servicio en la nube.
           </p>
         </div>
       </header>
 
-      <ol className="stages">
-        {STAGES.map((s, i) => (
-          <li key={s.name} className="stage panel">
+      {FEATURES.map((f, i) => (
+        <section key={f.name} className="feature" aria-labelledby={`feature-${i}`}>
+          <div className="feature-head">
             <span className="stage-n">{i + 1}</span>
-            <h2>{s.name}</h2>
-            <p>{s.what}</p>
-          </li>
-        ))}
-      </ol>
-
-      <section className="pathdemo" aria-labelledby="pathdemo-title">
-        <div className="pathdemo-text">
-          <h2 id="pathdemo-title">Probá el camino hasta el modelo</h2>
-          <p className="muted">
-            Mandá una pregunta y mirá por dónde pasa: es el mismo camino que usan los agentes cuando evalúan un servidor.
-            Probá escribir un email o un token para ver qué hace Occludra con ellos.
-          </p>
-          <Conversation
-            turns={chat.turns}
-            pending={chat.pending}
-            enabled={mode === "live"}
-            disabledReason="Funciona en modo Live: le pregunta al modelo de verdad."
-            examples={EXAMPLES}
-            placeholder="Escribí algo. Enter manda."
-            selected={selected}
-            onSelect={setSelected}
-            onAsk={(q) => void chat.ask(q)}
-            onRestart={chat.restart}
-          />
-        </div>
-        <aside className="pathdemo-path panel" aria-label="Recorrido de la respuesta">
-          <h3>Recorrido de la respuesta</h3>
-          {shown ? <Path turn={shown} /> : <p className="muted">Cuando mandes algo, acá aparece cada lugar por el que pasó.</p>}
-        </aside>
-      </section>
+            <div>
+              <h2 id={`feature-${i}`}>{f.name}</h2>
+              <p className="muted">{f.question}</p>
+            </div>
+            <a className="btn" href={f.link.to}>
+              {f.link.label}
+            </a>
+          </div>
+          <ol className="stages">
+            {f.steps.map((s) => (
+              <li key={s.name} className="stage panel">
+                <h3>{s.name}</h3>
+                <p>{s.what}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))}
     </div>
   );
 }

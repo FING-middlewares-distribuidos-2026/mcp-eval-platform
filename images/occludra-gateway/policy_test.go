@@ -59,6 +59,10 @@ func TestShippedPolicyRedactsWholeCredentials(t *testing.T) {
 		"aws access key":           "AKIA1234567890ABCDEF",
 		"bearer header":            "Authorization: Bearer 1234567890abcdefghijklmnop",
 		"password sentence":        "password: 12345678abcd",
+		"spanish clave":            "clave=Sup3rS3creta!2026",
+		"spanish contraseña":       "mi contraseña es Hunter2Hunter2xy",
+		"contraseña with words":    "la contraseña del servidor es Zq9!pLm2vX4w",
+		"spanish token":            "el token de acceso es 9f8e7d6c5b4a3f2e1d0c",
 	}
 	for name, secret := range secrets {
 		stats := &requestStats{redactions: map[string]int{}}
@@ -70,6 +74,21 @@ func TestShippedPolicyRedactsWholeCredentials(t *testing.T) {
 				t.Errorf("%s: %q survived in %q", name, tail[i:i+6], out)
 				break
 			}
+		}
+	}
+}
+
+// Ordinary Spanish prose that mentions the keywords must not be masked.
+func TestShippedPolicyLeavesPlainSpanishAlone(t *testing.T) {
+	p := shippedPolicy(t)
+	for _, text := range []string{
+		"La clave del problema es entender el scheduler de Kubernetes.",
+		"Olvidé mi contraseña, ¿cómo la recupero?",
+		"Los tokens se cuentan distinto en OpenCode.",
+	} {
+		stats := &requestStats{redactions: map[string]int{}}
+		if out := redactString(text, p, stats); out != text {
+			t.Errorf("plain text was rewritten: %q -> %q", text, out)
 		}
 	}
 }

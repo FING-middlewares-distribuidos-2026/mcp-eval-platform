@@ -65,13 +65,14 @@ func envInt(key string, def int) int {
 
 // Policy mirrors manifests/occludra-deployment.yaml ConfigMap occludra-policy.
 type Policy struct {
-	Version        int            `yaml:"version"`
-	DefaultAction  string         `yaml:"default_action"`
-	RedactionToken string         `yaml:"redaction_token"`
-	Detectors      []Detector     `yaml:"detectors"`
-	Models         ModelsPolicy   `yaml:"models"`
-	Logging        LoggingPolicy  `yaml:"logging"`
-	Upstream       UpstreamPolicy `yaml:"upstream"`
+	Version        int             `yaml:"version"`
+	DefaultAction  string          `yaml:"default_action"`
+	RedactionToken string          `yaml:"redaction_token"`
+	Detectors      []Detector      `yaml:"detectors"`
+	Models         ModelsPolicy    `yaml:"models"`
+	Logging        LoggingPolicy   `yaml:"logging"`
+	Upstream       UpstreamPolicy  `yaml:"upstream"`
+	Injection      InjectionPolicy `yaml:"injection"`
 }
 
 type Detector struct {
@@ -153,6 +154,12 @@ type gateway struct {
 	client       *http.Client
 	inflight     *inflightLimiter
 	journal      *journal
+	// Prompt-injection screening for named clients (injection.go); nil when
+	// OCCLUDRA_VIGIL_URL is unset.
+	vigil *vigilClient
+	// Tokens accepted from the "external" client (OpenCode outside the
+	// cluster, through Traefik); see externalAllowed.
+	externalTokens []string
 }
 
 // currentPolicy loads the policy file on demand. ConfigMap volume updates
@@ -176,6 +183,7 @@ type requestStats struct {
 	redactions     map[string]int
 	blockedBy      string
 	upstreamStatus int
+	injection      *injectionVerdict
 }
 
 func main() {
@@ -224,13 +232,15 @@ func main() {
 	}
 
 	g := &gateway{
-		policyPath:   policyPath,
-		upstreamBase: base,
-		upstreamKey:  key,
-		fallbackBase: fallbackBase,
-		fallbackKey:  fallbackKey,
-		inflight:     newInflightLimiter(envInt("OCCLUDRA_MAX_INFLIGHT", 64)),
-		journal:      &journal{},
+		policyPath:     policyPath,
+		upstreamBase:   base,
+		upstreamKey:    key,
+		fallbackBase:   fallbackBase,
+		fallbackKey:    fallbackKey,
+		inflight:       newInflightLimiter(envInt("OCCLUDRA_MAX_INFLIGHT", 64)),
+		journal:        &journal{},
+		vigil:          newVigilClient(),
+		externalTokens: splitTokens(os.Getenv("OCCLUDRA_EXTERNAL_TOKENS")),
 		client: &http.Client{
 			// SSE completions legitimately stream for minutes; the timeout
 			// bounds the WHOLE request including body read, so it stays
@@ -295,6 +305,9 @@ func main() {
 		}()
 	}
 
+	if g.vigil != nil {
+		log.Printf("prompt-injection screening via %s for clients %v", g.vigil.url, policy.Injection.Clients)
+	}
 	addr := server.Addr
 	log.Printf("occludra gateway listening on %s → upstream %s (policy %s, %d detectors)",
 		addr, base, policyPath, len(policy.Detectors))
@@ -342,12 +355,18 @@ func loadPolicy(path string) (*Policy, error) {
 // Redaction is shape-agnostic (recursive string walk), so both bodies are
 // handled by the same routine; everything else proxies verbatim.
 func (g *gateway) serve(w http.ResponseWriter, r *http.Request) {
+	if clientOf(r) == externalClient && !g.externalAllowed(r) {
+		blocked.WithLabelValues("external-auth").Inc()
+		w.Header().Set("WWW-Authenticate", `Bearer realm="occludra"`)
+		http.Error(w, "missing or unknown gateway token", http.StatusUnauthorized)
+		return
+	}
 	if r.Method == http.MethodPost &&
 		(strings.HasSuffix(r.URL.Path, "/chat/completions") || strings.HasSuffix(r.URL.Path, "/responses")) {
 		g.serveChatCompletions(w, r)
 		return
 	}
-	g.proxy(w, r, nil, 0)
+	g.proxy(w, r, nil, 0, nil)
 }
 
 func (g *gateway) serveChatCompletions(w http.ResponseWriter, r *http.Request) {
@@ -376,6 +395,7 @@ func (g *gateway) serveChatCompletions(w http.ResponseWriter, r *http.Request) {
 				DurationMs:    time.Since(started).Milliseconds(),
 				RequestBytes:  requestBytes,
 				ResponseBytes: cw.bytes,
+				Injection:     stats.injection,
 			})
 		}()
 	}
@@ -445,7 +465,29 @@ func (g *gateway) serveChatCompletions(w http.ResponseWriter, r *http.Request) {
 			log.Printf("%d redaction(s) %v", total, formatRedactions(stats))
 		}
 	}
-	g.proxy(w, r, redacted, int64(len(redacted)))
+	client := clientOf(r)
+	if policy.Injection.screens(client) && policy.Injection.ScanRequests {
+		if v := g.screen(r.Context(), policy, "request", outboundText(obj)); v != nil {
+			stats.blockedBy, stats.injection = "vigil:request", v
+			blocked.WithLabelValues("injection-request").Inc()
+			log.Printf("blocked request: %s", describeVerdict(v))
+			refuse(w, v)
+			return
+		}
+	}
+	var scanResponse func([]byte, bool) *injectionVerdict
+	if policy.Injection.screens(client) && policy.Injection.ScanResponses {
+		scanResponse = func(answer []byte, sse bool) *injectionVerdict {
+			v := g.screen(r.Context(), policy, "response", answerText(answer, sse))
+			if v != nil {
+				stats.blockedBy, stats.injection = "vigil:response", v
+				blocked.WithLabelValues("injection-response").Inc()
+				log.Printf("blocked answer: %s", describeVerdict(v))
+			}
+			return v
+		}
+	}
+	g.proxy(w, r, redacted, int64(len(redacted)), scanResponse)
 }
 
 // redactValue walks the JSON tree and redacts every string value. Strings
@@ -533,7 +575,9 @@ func normalizeToolChoice(obj map[string]any) {
 // client, so streaming responses are never duplicated mid-flight. Requests
 // are NOT retried on 4xx (model-not-found etc. is a request problem, and
 // POSTs are not idempotent beyond this one deliberate hop).
-func (g *gateway) proxy(w http.ResponseWriter, r *http.Request, body []byte, contentLength int64) {
+// proxy forwards to the upstream. With scanResponse set, a successful answer
+// is buffered and released only if the scan passes (injection.go).
+func (g *gateway) proxy(w http.ResponseWriter, r *http.Request, body []byte, contentLength int64, scanResponse func([]byte, bool) *injectionVerdict) {
 	incoming := r.URL.Path
 	if incoming == "/v1" {
 		incoming = ""
@@ -625,6 +669,36 @@ func (g *gateway) proxy(w http.ResponseWriter, r *http.Request, body []byte, con
 
 	isInference := markerApplies(incoming)
 	isSSE := strings.HasPrefix(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream")
+
+	// Screened clients: hold the whole answer, scan it, then release it
+	// unchanged or refuse it. The stream is no longer live for them; that
+	// is the price of checking what the model said before anyone reads it.
+	if scanResponse != nil && resp.StatusCode < 400 {
+		answer, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
+		if err != nil {
+			http.Error(w, "reading upstream response failed", http.StatusBadGateway)
+			return
+		}
+		if v := scanResponse(answer, isSSE); v != nil {
+			refuse(w, v)
+			return
+		}
+		for name, values := range resp.Header {
+			if isHopByHop(name) || strings.EqualFold(name, "Content-Length") {
+				continue
+			}
+			for _, v := range values {
+				w.Header().Add(name, v)
+			}
+		}
+		if isInference {
+			w.Header().Set("X-Occludra-Proxy", "true")
+		}
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(answer)))
+		w.WriteHeader(resp.StatusCode)
+		_, _ = w.Write(answer)
+		return
+	}
 
 	// Non-streaming JSON inference response: buffer (bounded), append the
 	// marker to the last message, forward.

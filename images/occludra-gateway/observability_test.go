@@ -48,7 +48,7 @@ func TestFinalUpstreamErrorIsPreservedAndTraceHeadersArePrivate(t *testing.T) {
 	req.Header.Set("traceparent", "00-11111111111111111111111111111111-2222222222222222-01")
 	req.Header.Set("x-mcp-run", "private-run")
 	rr := httptest.NewRecorder()
-	g.proxy(rr, req, []byte(`{}`), 2)
+	g.proxy(rr, req, []byte(`{}`), 2, nil)
 	if rr.Code != 429 || !strings.Contains(rr.Body.String(), "rate limited") {
 		t.Fatalf("lost upstream failure: %d %s", rr.Code, rr.Body.String())
 	}

@@ -2,13 +2,15 @@
 // analysis ("preguntale al análisis"): the backend then opens the session with
 // that run's data. Without a run it is the plain path demo.
 import { useCallback, useRef, useState } from "react";
-import type { ChatReply } from "../model/chat.ts";
+import type { ChatReply, GatewayHop } from "../model/chat.ts";
 
 export interface Turn {
   id: number;
   question: string;
   reply?: ChatReply;
   error?: string;
+  /** What Occludra did when the turn failed (a refusal says why). */
+  gateway?: GatewayHop[] | null;
 }
 
 function storageKey(run: string | null): string {
@@ -56,6 +58,8 @@ export function useChat(run: string | null) {
             session.current = null;
             save(key, null);
           }
+          const gateway = body.gateway ?? null;
+          setTurns((t) => t.map((x) => (x.id === id ? { ...x, gateway } : x)));
           throw new Error(body.error ?? `HTTP ${res.status}`);
         }
         session.current = body.session;

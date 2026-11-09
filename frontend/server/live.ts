@@ -24,7 +24,7 @@ import type { EvaluationReport } from "../src/model/report.ts";
 import { buildAskContext } from "../src/model/askContext.ts";
 import type { MCPServer } from "../src/model/crd.ts";
 import { handleAction, isActionRoute, mergePatchBody } from "./actions.ts";
-import { chatEnabled, handleChat, setRunContext } from "./chat.ts";
+import { chatEnabled, handleChat, handleGateway, setRunContext } from "./chat.ts";
 import { isSameOrigin } from "./origin.ts";
 
 const NAMESPACE = process.env["NAMESPACE"] ?? "mcp-evals";
@@ -392,6 +392,10 @@ const server = createServer((req, res) => {
   }
   if (req.url === "/api/chat") {
     void handleChat(req, res);
+    return;
+  }
+  if (req.url === "/api/gateway" || req.url?.startsWith("/api/gateway?")) {
+    void handleGateway(req, res);
     return;
   }
   if (isActionRoute(req.url)) {
