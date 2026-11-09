@@ -73,16 +73,28 @@ data:
         pattern: '(?i)\b(bearer|authorization)[:= ]+[A-Za-z0-9._~+/=-]{16,}'
         action: redact
       - name: password-context
-        # Natural-language secret disclosure: "the password is X", "passwd:
-        # X". Catches high-entropy strings no keyword-prefix detector sees.
+        # Natural-language secret disclosure, English and Spanish: "the
+        # password is X", "passwd: X", "mi contraseña es X". Up to three words
+        # may sit between the keyword and the verb ("password for the db is",
+        # "contraseña del servidor es"). Catches high-entropy strings no
+        # keyword-prefix detector sees.
         type: regex
-        pattern: '(?i)\b(pass ?words?|passphrases?|passcodes?|passwd)\b\s*(?:is|are|:|=)\s*\S{6,}'
+        pattern: '(?i)\b(pass ?words?|passphrases?|passcodes?|passwd|contraseñas?)\b(?:\s+[^\s:=]{1,20}){0,3}?\s*(?:is|are|es|son|era|:|=)\s*\S{6,}'
+        action: redact
+      - name: password-context-ambiguous
+        # "clave" and "pass" are also ordinary words ("la clave del problema
+        # es entender..."), so the value must look like a password: it has to
+        # carry a digit or a symbol. "clave=Sup3rS3creta!2026" is masked,
+        # "la clave es entender" is not.
+        type: regex
+        pattern: '(?i)\b(claves?|pass)\b(?:\s+[^\s:=]{1,20}){0,3}?\s*(?:is|es|era|:|=)\s*[^\s]*[0-9_!@#$%&*+=/\\-][^\s]*'
         action: redact
       - name: secret-assignment
-        # Assignment-style disclosures of generic secrets: "api key = X",
-        # "secret: X" (egress twin of vigil's credential-harvest pattern).
+        # Assignment-style disclosures of generic secrets, English and
+        # Spanish: "api key = X", "secret: X", "el token es X", "mi
+        # credencial: X" (egress twin of vigil's credential-harvest pattern).
         type: regex
-        pattern: '(?i)\b(api[_ -]?keys?|secrets?|tokens?|credentials?)\b\s*(?:is|are|:|=)\s*\S{8,}'
+        pattern: '(?i)\b(api[_ -]?keys?|secrets?|secretos?|tokens?|credentials?|credenciales?|llaves?)\b(?:\s+[^\s:=]{1,20}){0,3}?\s*(?:is|are|es|son|:|=)\s*\S{8,}'
         action: redact
       - name: email
         type: regex
@@ -132,6 +144,19 @@ data:
         - "^gpt"
         # NVIDIA NIM ids carry the publisher prefix (z-ai/glm-5.3, ...).
         - "^(z-ai|moonshotai|deepseek-ai|nvidia|meta|mistralai|qwen|openai|google)/"
+    injection:
+      # Prompt-injection screening with Vigil, both ways (injection.go): the
+      # turn a client sends is scanned before it goes upstream, and the
+      # model's answer is held and scanned before it is released. Only these
+      # clients (X-Occludra-Client) are screened: the UI chat and OpenCode
+      # clients from outside the cluster (manifests/ingress/llm-gateway.yaml).
+      # Evaluation traffic names no client: the evaluator scans MCP output
+      # with Vigil itself, and its prompts quote the hostile MCP on purpose.
+      clients: ["ui-chat", "external"]
+      scan_requests: true
+      scan_responses: true
+      # Vigil down or erroring: refuse (block) rather than pass unscreened.
+      on_vigil_error: block
     logging:
       # Never persist prompt content in gateway logs; count and classify only.
       log_prompts: false
@@ -242,6 +267,21 @@ spec:
             # growth per replica. The HPA adds replicas before saturation.
             - name: OCCLUDRA_MAX_INFLIGHT
               value: "64"
+            # Vigil for prompt-injection screening (policy.injection). Answers
+            # take a few seconds on the cluster's CPU; the timeout is generous.
+            - name: OCCLUDRA_VIGIL_URL
+              value: "http://vigil-service.security-gateways.svc.cluster.local:5000"
+            - name: OCCLUDRA_VIGIL_TIMEOUT_MS
+              value: "90000"
+            # Bearer tokens accepted from OpenCode clients outside the cluster
+            # (client "external", stamped by Traefik). Secret written by
+            # hack/gitops/secrets.sh; no Secret means no external access.
+            - name: OCCLUDRA_EXTERNAL_TOKENS
+              valueFrom:
+                secretKeyRef:
+                  name: occludra-external-tokens
+                  key: tokens
+                  optional: true
             # ---- upstream failover (removes the single-upstream SPOF) ----
             # Set both to a secondary provider (e.g. Anthropic direct). On
             # primary transport failure, 5xx or 429 the gateway retries the
@@ -578,6 +618,15 @@ spec:
       ports:
         - protocol: TCP
           port: 443
+    # Occludra -> Vigil: prompt-injection screening of the UI chat and of
+    # external OpenCode clients (policy.injection).
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vigil-llm
+      ports:
+        - protocol: TCP
+          port: 5000
     # Chroma (manifests/chroma/) — Vigil's vector scanner queries the
     # corpora there. Only chroma-gateway (token check) is reachable; the
     # frontend, sysdb/log/minio/postgres stay unreachable from the gateways.

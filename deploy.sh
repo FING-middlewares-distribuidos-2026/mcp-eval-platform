@@ -667,6 +667,10 @@ if [ "$DEPLOY_INGRESS" = "1" ]; then
   if [ "$DEPLOY_UI" = "1" ]; then
     kubectl apply -f manifests/ingress/ui-ingress.yaml
   fi
+  # OpenCode clients outside the cluster reach Occludra at /llm/v1.
+  if [ "$DEPLOY_SECURITY_GATEWAYS" = "1" ]; then
+    kubectl apply -f manifests/ingress/llm-gateway.yaml
+  fi
 fi
 
 if [ "$WORKSTATION_NODEPORT" = "1" ]; then

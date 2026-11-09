@@ -24,7 +24,7 @@ func proxyOnce(t *testing.T, contentType, body string) *httptest.ResponseRecorde
 	}
 	g := &gateway{upstreamBase: base, client: up.Client()}
 	rr := httptest.NewRecorder()
-	g.proxy(rr, httptest.NewRequest("POST", "/v1/chat/completions", nil), []byte(`{}`), 2)
+	g.proxy(rr, httptest.NewRequest("POST", "/v1/chat/completions", nil), []byte(`{}`), 2, nil)
 	return rr
 }
 

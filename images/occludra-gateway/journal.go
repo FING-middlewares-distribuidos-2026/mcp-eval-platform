@@ -41,6 +41,9 @@ type journalEntry struct {
 	DurationMs    int64          `json:"durationMs"`
 	RequestBytes  int            `json:"requestBytes"`
 	ResponseBytes int64          `json:"responseBytes"`
+	// Set when Vigil screened this request (injection.go): which direction
+	// was refused and by which scanners, or the scan error.
+	Injection *injectionVerdict `json:"injection,omitempty"`
 }
 
 type journal struct {
