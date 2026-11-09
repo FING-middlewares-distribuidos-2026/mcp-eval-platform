@@ -56,7 +56,8 @@ describe("routes", () => {
     expect(parseRoute("#/chat")).toEqual({ page: "chat" });
     expect(parseRoute("#/seguridad")).toEqual({ page: "security" });
     expect(href({ page: "security" })).toBe("#/seguridad");
-    expect(parseRoute("#/")).toEqual({ page: "servers" });
+    expect(parseRoute("#/")).toEqual({ page: "home" });
+    expect(parseRoute("#/mcp")).toEqual({ page: "servers" });
   });
 });
 

@@ -3,6 +3,25 @@ import type { Mode } from "../data/source.ts";
 import { useGateway } from "../data/useGateway.ts";
 import { type GatewayHop, detectorLabel, injectionSummary } from "../model/chat.ts";
 
+/** Shown in demo mode only, labelled as examples: what each kind of row looks like. */
+function exampleEntries(now: number): GatewayHop[] {
+  const at = (minAgo: number) => new Date(now - minAgo * 60_000).toISOString();
+  const base = { requestBytes: 900, responseBytes: 400, upstream: "10.147.17.21:8080", servedBy: "primary", model: "gemma-4-12b-it" };
+  return [
+    { ...base, id: 1, at: at(42), client: "ui-chat", redactions: {}, status: 200, durationMs: 4200 },
+    { ...base, id: 2, at: at(31), client: "ui-chat", redactions: { "password-context": 1, "api-key": 1 }, status: 200, durationMs: 5100 },
+    {
+      ...base, id: 3, at: at(18), client: "external", redactions: {}, status: 403, durationMs: 1300,
+      blockedBy: "vigil:request", injection: { direction: "request", scanners: ["YARA signature(s)", "transformer model"] },
+    },
+    { ...base, id: 4, at: at(9), client: "external", redactions: { email: 2 }, status: 200, durationMs: 6900 },
+    {
+      ...base, id: 5, at: at(3), client: "ui-chat", redactions: {}, status: 403, durationMs: 7400,
+      blockedBy: "vigil:response", injection: { direction: "response", scanners: ["vector similarity"] },
+    },
+  ];
+}
+
 const CLIENT_LABEL: Record<string, string> = {
   "ui-chat": "Chat de la UI",
   external: "OpenCode externo",
@@ -21,9 +40,11 @@ function vigil(hop: GatewayHop): { text: string; tone: string } {
 /** Everything Occludra and Vigil did for the protected chat and for external OpenCode clients. */
 export function SecurityPage({ mode }: { mode: Mode }) {
   const log = useGateway(mode === "live");
-  const entries = [...log.entries].reverse();
   const now = Date.now();
-  const total = (pick: (h: GatewayHop) => number) => log.entries.reduce((a, h) => a + pick(h), 0);
+  const demo = mode === "demo";
+  const source = demo ? exampleEntries(now) : log.entries;
+  const entries = [...source].reverse();
+  const total = (pick: (h: GatewayHop) => number) => source.reduce((a, h) => a + pick(h), 0);
   const maskedTotal = total((h) => Object.values(h.redactions).reduce((a, b) => a + b, 0));
   const outbound = total((h) => (h.injection?.direction === "request" && !h.injection.error ? 1 : 0));
   const inbound = total((h) => (h.injection?.direction === "response" && !h.injection.error ? 1 : 0));
@@ -40,7 +61,9 @@ export function SecurityPage({ mode }: { mode: Mode }) {
         </div>
       </header>
 
-      {mode === "demo" && <p className="notice">El registro es del cluster: cambiá a modo Cluster para verlo.</p>}
+      {demo && (
+        <p className="notice">Estas filas son ejemplos de lo que aparece acá. En modo Cluster ves el registro real.</p>
+      )}
       {mode === "live" && log.state === "off" && (
         <p className="notice">Occludra no expone su registro en este cluster (falta OCCLUDRA_INSPECT_URL).</p>
       )}
@@ -50,11 +73,11 @@ export function SecurityPage({ mode }: { mode: Mode }) {
         </p>
       )}
 
-      {mode === "live" && (
+      {(demo || log.state === "ready") && (
         <dl className="tally" aria-label="Resumen">
           <div>
             <dt>Mensajes al modelo</dt>
-            <dd>{log.entries.length}</dd>
+            <dd>{source.length}</dd>
           </div>
           <div>
             <dt>Datos tapados</dt>

@@ -8,6 +8,7 @@ import { LiveSource } from "./data/live.ts";
 import type { Mode } from "./data/source.ts";
 import { go, href, useRoute } from "./router.ts";
 import { ChatPage } from "./views/ChatPage.tsx";
+import { HomePage } from "./views/HomePage.tsx";
 import { HowItWorks } from "./views/HowItWorks.tsx";
 import { NewServerSheet } from "./views/NewServerSheet.tsx";
 import { ServerPage } from "./views/ServerPage.tsx";
@@ -17,6 +18,7 @@ import "./styles/shell.css";
 import "./styles/pages.css";
 import "./styles/story.css";
 import "./styles/chat.css";
+import "./styles/home.css";
 
 /** Live by default where the UI is deployed; the demo replay for `npm run demo`. */
 function initialMode(): Mode {
@@ -66,21 +68,27 @@ export function App() {
   return (
     <div className="shell">
       <aside className="rail">
-        <a className="brand" href={href({ page: "servers" })}>
+        <a className="brand" href={href({ page: "home" })}>
           <Logo className="brand-logo" />
           <span>MCP Eval</span>
         </a>
         <nav className="nav" aria-label="Secciones">
+          <a href={href({ page: "home" })} aria-current={route.page === "home" ? "page" : undefined}>
+            Inicio
+          </a>
           <a
             href={href({ page: "servers" })}
             aria-current={route.page === "servers" || route.page === "server" ? "page" : undefined}
           >
+            <span className="nav-dot nav-dot-eval" aria-hidden="true" />
             Evaluar un MCP
           </a>
           <a href={href({ page: "chat" })} aria-current={route.page === "chat" ? "page" : undefined}>
+            <span className="nav-dot nav-dot-mask" aria-hidden="true" />
             Chat protegido
           </a>
           <a href={href({ page: "security" })} aria-current={route.page === "security" ? "page" : undefined}>
+            <span className="nav-dot nav-dot-guard" aria-hidden="true" />
             Registro de seguridad
           </a>
           <a href={href({ page: "how" })} aria-current={route.page === "how" ? "page" : undefined}>
@@ -115,12 +123,15 @@ export function App() {
       </aside>
 
       <main className="main">
-        {mode === "demo" && replay && <ReplayBar demo={demo} replay={replay} />}
+        {mode === "demo" && replay && (route.page === "servers" || route.page === "server") && (
+          <ReplayBar demo={demo} replay={replay} />
+        )}
         {mode === "live" && conn.state === "error" && (
           <p className="notice notice-error banner" role="alert">
             {conn.message ?? "Se perdió la conexión con el cluster."} Reintentando…
           </p>
         )}
+        {route.page === "home" && <HomePage snap={snap} />}
         {route.page === "servers" && <ServersPage snap={snap} onNew={() => setCreating(true)} />}
         {route.page === "server" && (
           <ServerPage snap={snap} source={source} mode={mode} theme={theme} name={route.server} runName={route.run} />
