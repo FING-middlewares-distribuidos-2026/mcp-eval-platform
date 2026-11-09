@@ -1,4 +1,9 @@
-# gpu-node — this PC as an on-demand GPU worker
+# gpu-node — this PC as an on-demand GPU worker (archived)
+
+> **Archived 2026-11-09.** The PC no longer joins the cluster: it serves the
+> LLM and Vigil by API instead (`hack/pc-services`, decision in
+> docs/decisions.md). Kept for a future GPU workload that must run inside
+> the cluster.
 
 Attaches a personal machine (RTX GPU) to the k0s cluster **only when you run
 `gpu-node up`**, runs the GPU build of the Vigil scanner on it, and removes

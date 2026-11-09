@@ -5,9 +5,46 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - generated
+# The 3.9 GB workers cannot hold Vigil (measured 2.6-3.5 GiB): it runs on
+# the GPU PC as a container (hack/pc-services, VIGIL_REMOTE_URL in
+# render.env) and a relay takes its place here. PC down, no scans: the
+# evaluator and the chat fail closed.
 patches:
-  # The 3.9 GB workers cannot hold Vigil (measured 2.6-3.5 GiB); it runs on
-  # the GPU PC when that is attached (hack/gpu-node). No PC, no scans: the
-  # evaluator fails closed.
-  - path: patches/vigil-on-gpu-node.yaml
   - path: patches/occludra-small.yaml
+  - path: patches/operator-k0s.yaml
+    target:
+      kind: Deployment
+      name: mcp-eval-controller-manager
+      namespace: mcp-eval-system
+  # Demo-day tuning (2026-10-28), kept so Flux matches what runs:
+  # Chroma's query node with a block cache bounded to 700 MiB
+  # (manifests/chroma/worker-config.yaml) needs up to 2 GiB.
+  - target: {kind: StatefulSet, name: query-service, namespace: chroma}
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 2Gi
+  # pg_isready timed out during the control plane's slow periods and the
+  # kubelet restarted a healthy Postgres; readiness still gates traffic.
+  - target: {kind: Deployment, name: postgres, namespace: chroma}
+    patch: |-
+      - op: remove
+        path: /spec/template/spec/containers/0/livenessProbe
+  # The corpus is loaded (whole texts complete; sentences partly). Loading
+  # more hits 429s while compaction is off (CHROMA_COMPACTION_REPLICAS=0).
+  - target: {kind: Job, name: vigil-corpus-loader, namespace: chroma}
+    patch: |-
+      - op: add
+        path: /spec/suspend
+        value: true
+  # The local Gemma on one GPU answers slowly with ~46K-token prompts.
+  - target: {kind: OpenCodeAgent, namespace: mcp-evals}
+    patch: |-
+      - op: replace
+        path: /spec/config/timeoutMs
+        value: 720000
+  - target: {kind: MCPServer, name: filesystem-mcp, namespace: mcp-evals}
+    patch: |-
+      - op: replace
+        path: /spec/timeoutSeconds
+        value: 3600

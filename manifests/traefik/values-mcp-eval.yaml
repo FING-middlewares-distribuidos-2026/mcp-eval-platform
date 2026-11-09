@@ -21,8 +21,13 @@ providers:
   kubernetesIngress:
     enabled: true
 
+# Fixed NodePorts (the values the Service first got): the GPU PC enters
+# Traefik through a node's ZeroTier address on websecure's NodePort
+# (hack/pc-services, manifests/ingress/chroma-route.yaml), so it must not
+# change when the Service is recreated.
 ports:
   web:
+    nodePort: 32479
     # Plain HTTP only redirects to HTTPS.
     http:
       redirections:
@@ -31,6 +36,7 @@ ports:
           scheme: https
           permanent: true
   websecure:
+    nodePort: 31365
     http:
       tls:
         enabled: true

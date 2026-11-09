@@ -1022,10 +1022,11 @@ data:
     \ 10000\n    active_io_tasks: 10000\n  blockfile_provider:\n    arrow:\n      block_manager_config:\n        max_block_size_bytes:\
     \ 8388608 # 8MB\n        block_cache_config:\n          disk:\n            dir: \"/cache/chroma/query-service/block-cache\"\
     \n            name: \"block_cache\"\n            # 1k blocks * 8MiB = 8GiB, this is actually ignored in the disk cache\
-    \ config. Leaving it set to 1k for consistency.\n            capacity: 1000\n            mem: 8000 # 8GiB\n          \
-    \  disk: 12884 # 12GiB\n            file_size: 256 #  256 MiB\n            flushers: 4\n            flush: false\n   \
-    \         reclaimers: 2\n            recover_concurrency: 16\n            admission_rate_limit: 256 # 256MiB/s\n     \
-    \       shards: 64\n            eviction: lru\n        num_concurrent_block_flushes: 40\n      sparse_index_manager_config:\n\
+    \ config. Leaving it set to 1k for consistency.\n            capacity: 1000\n            # In-memory part of the block\
+    \ cache. Upstream ships 8 GiB; the\n            # query node runs in 2 GiB on 3.9 GB workers (deploy/k0s).\n         \
+    \   mem: 700 # MiB\n            disk: 12884 # 12GiB\n            file_size: 256 #  256 MiB\n            flushers: 4\n\
+    \            flush: false\n            reclaimers: 2\n            recover_concurrency: 16\n            admission_rate_limit:\
+    \ 256 # 256MiB/s\n            shards: 64\n            eviction: lru\n        num_concurrent_block_flushes: 40\n      sparse_index_manager_config:\n\
     \        sparse_index_cache_config:\n          lru:\n            name: \"sparse_index_cache\"\n            capacity: 1000\n\
     \  hnsw_provider:\n    hnsw_temporary_path: \"~/tmp\"\n    hnsw_cache_config:\n      memory:\n        name: \"hnsw_cache\"\
     \n        capacity: 8589934592 # 8GB\n    permitted_parallelism: 180\n  spann_provider:\n    adaptive_search_nprobe: false\n\
@@ -1161,10 +1162,11 @@ data:
     \ 10000\n    active_io_tasks: 10000\n  blockfile_provider:\n    arrow:\n      block_manager_config:\n        max_block_size_bytes:\
     \ 8388608 # 8MB\n        block_cache_config:\n          disk:\n            dir: \"/cache/chroma/query-service/block-cache\"\
     \n            name: \"block_cache\"\n            # 1k blocks * 8MiB = 8GiB, this is actually ignored in the disk cache\
-    \ config. Leaving it set to 1k for consistency.\n            capacity: 1000\n            mem: 8000 # 8GiB\n          \
-    \  disk: 12884 # 12GiB\n            file_size: 256 #  256 MiB\n            flushers: 4\n            flush: false\n   \
-    \         reclaimers: 2\n            recover_concurrency: 16\n            admission_rate_limit: 256 # 256MiB/s\n     \
-    \       shards: 64\n            eviction: lru\n        num_concurrent_block_flushes: 40\n      sparse_index_manager_config:\n\
+    \ config. Leaving it set to 1k for consistency.\n            capacity: 1000\n            # In-memory part of the block\
+    \ cache. Upstream ships 8 GiB; the\n            # query node runs in 2 GiB on 3.9 GB workers (deploy/k0s).\n         \
+    \   mem: 700 # MiB\n            disk: 12884 # 12GiB\n            file_size: 256 #  256 MiB\n            flushers: 4\n\
+    \            flush: false\n            reclaimers: 2\n            recover_concurrency: 16\n            admission_rate_limit:\
+    \ 256 # 256MiB/s\n            shards: 64\n            eviction: lru\n        num_concurrent_block_flushes: 40\n      sparse_index_manager_config:\n\
     \        sparse_index_cache_config:\n          lru:\n            name: \"sparse_index_cache\"\n            capacity: 1000\n\
     \  hnsw_provider:\n    hnsw_temporary_path: \"~/tmp\"\n    hnsw_cache_config:\n      memory:\n        name: \"hnsw_cache\"\
     \n        capacity: 8589934592 # 8GB\n    permitted_parallelism: 180\n  spann_provider:\n    adaptive_search_nprobe: false\n\
@@ -1300,10 +1302,11 @@ data:
     \ 10000\n    active_io_tasks: 10000\n  blockfile_provider:\n    arrow:\n      block_manager_config:\n        max_block_size_bytes:\
     \ 8388608 # 8MB\n        block_cache_config:\n          disk:\n            dir: \"/cache/chroma/query-service/block-cache\"\
     \n            name: \"block_cache\"\n            # 1k blocks * 8MiB = 8GiB, this is actually ignored in the disk cache\
-    \ config. Leaving it set to 1k for consistency.\n            capacity: 1000\n            mem: 8000 # 8GiB\n          \
-    \  disk: 12884 # 12GiB\n            file_size: 256 #  256 MiB\n            flushers: 4\n            flush: false\n   \
-    \         reclaimers: 2\n            recover_concurrency: 16\n            admission_rate_limit: 256 # 256MiB/s\n     \
-    \       shards: 64\n            eviction: lru\n        num_concurrent_block_flushes: 40\n      sparse_index_manager_config:\n\
+    \ config. Leaving it set to 1k for consistency.\n            capacity: 1000\n            # In-memory part of the block\
+    \ cache. Upstream ships 8 GiB; the\n            # query node runs in 2 GiB on 3.9 GB workers (deploy/k0s).\n         \
+    \   mem: 700 # MiB\n            disk: 12884 # 12GiB\n            file_size: 256 #  256 MiB\n            flushers: 4\n\
+    \            flush: false\n            reclaimers: 2\n            recover_concurrency: 16\n            admission_rate_limit:\
+    \ 256 # 256MiB/s\n            shards: 64\n            eviction: lru\n        num_concurrent_block_flushes: 40\n      sparse_index_manager_config:\n\
     \        sparse_index_cache_config:\n          lru:\n            name: \"sparse_index_cache\"\n            capacity: 1000\n\
     \  hnsw_provider:\n    hnsw_temporary_path: \"~/tmp\"\n    hnsw_cache_config:\n      memory:\n        name: \"hnsw_cache\"\
     \n        capacity: 8589934592 # 8GB\n    permitted_parallelism: 180\n  spann_provider:\n    adaptive_search_nprobe: false\n\
@@ -1439,10 +1442,11 @@ data:
     \ 10000\n    active_io_tasks: 10000\n  blockfile_provider:\n    arrow:\n      block_manager_config:\n        max_block_size_bytes:\
     \ 8388608 # 8MB\n        block_cache_config:\n          disk:\n            dir: \"/cache/chroma/query-service/block-cache\"\
     \n            name: \"block_cache\"\n            # 1k blocks * 8MiB = 8GiB, this is actually ignored in the disk cache\
-    \ config. Leaving it set to 1k for consistency.\n            capacity: 1000\n            mem: 8000 # 8GiB\n          \
-    \  disk: 12884 # 12GiB\n            file_size: 256 #  256 MiB\n            flushers: 4\n            flush: false\n   \
-    \         reclaimers: 2\n            recover_concurrency: 16\n            admission_rate_limit: 256 # 256MiB/s\n     \
-    \       shards: 64\n            eviction: lru\n        num_concurrent_block_flushes: 40\n      sparse_index_manager_config:\n\
+    \ config. Leaving it set to 1k for consistency.\n            capacity: 1000\n            # In-memory part of the block\
+    \ cache. Upstream ships 8 GiB; the\n            # query node runs in 2 GiB on 3.9 GB workers (deploy/k0s).\n         \
+    \   mem: 700 # MiB\n            disk: 12884 # 12GiB\n            file_size: 256 #  256 MiB\n            flushers: 4\n\
+    \            flush: false\n            reclaimers: 2\n            recover_concurrency: 16\n            admission_rate_limit:\
+    \ 256 # 256MiB/s\n            shards: 64\n            eviction: lru\n        num_concurrent_block_flushes: 40\n      sparse_index_manager_config:\n\
     \        sparse_index_cache_config:\n          lru:\n            name: \"sparse_index_cache\"\n            capacity: 1000\n\
     \  hnsw_provider:\n    hnsw_temporary_path: \"~/tmp\"\n    hnsw_cache_config:\n      memory:\n        name: \"hnsw_cache\"\
     \n        capacity: 8589934592 # 8GB\n    permitted_parallelism: 180\n  spann_provider:\n    adaptive_search_nprobe: false\n\
@@ -1610,10 +1614,11 @@ data:
     \ 10000\n    active_io_tasks: 10000\n  blockfile_provider:\n    arrow:\n      block_manager_config:\n        max_block_size_bytes:\
     \ 8388608 # 8MB\n        block_cache_config:\n          disk:\n            dir: \"/cache/chroma/query-service/block-cache\"\
     \n            name: \"block_cache\"\n            # 1k blocks * 8MiB = 8GiB, this is actually ignored in the disk cache\
-    \ config. Leaving it set to 1k for consistency.\n            capacity: 1000\n            mem: 8000 # 8GiB\n          \
-    \  disk: 12884 # 12GiB\n            file_size: 256 #  256 MiB\n            flushers: 4\n            flush: false\n   \
-    \         reclaimers: 2\n            recover_concurrency: 16\n            admission_rate_limit: 256 # 256MiB/s\n     \
-    \       shards: 64\n            eviction: lru\n        num_concurrent_block_flushes: 40\n      sparse_index_manager_config:\n\
+    \ config. Leaving it set to 1k for consistency.\n            capacity: 1000\n            # In-memory part of the block\
+    \ cache. Upstream ships 8 GiB; the\n            # query node runs in 2 GiB on 3.9 GB workers (deploy/k0s).\n         \
+    \   mem: 700 # MiB\n            disk: 12884 # 12GiB\n            file_size: 256 #  256 MiB\n            flushers: 4\n\
+    \            flush: false\n            reclaimers: 2\n            recover_concurrency: 16\n            admission_rate_limit:\
+    \ 256 # 256MiB/s\n            shards: 64\n            eviction: lru\n        num_concurrent_block_flushes: 40\n      sparse_index_manager_config:\n\
     \        sparse_index_cache_config:\n          lru:\n            name: \"sparse_index_cache\"\n            capacity: 1000\n\
     \  hnsw_provider:\n    hnsw_temporary_path: \"~/tmp\"\n    hnsw_cache_config:\n      memory:\n        name: \"hnsw_cache\"\
     \n        capacity: 8589934592 # 8GB\n    permitted_parallelism: 180\n  spann_provider:\n    adaptive_search_nprobe: false\n\
@@ -1749,10 +1754,11 @@ data:
     \ 10000\n    active_io_tasks: 10000\n  blockfile_provider:\n    arrow:\n      block_manager_config:\n        max_block_size_bytes:\
     \ 8388608 # 8MB\n        block_cache_config:\n          disk:\n            dir: \"/cache/chroma/query-service/block-cache\"\
     \n            name: \"block_cache\"\n            # 1k blocks * 8MiB = 8GiB, this is actually ignored in the disk cache\
-    \ config. Leaving it set to 1k for consistency.\n            capacity: 1000\n            mem: 8000 # 8GiB\n          \
-    \  disk: 12884 # 12GiB\n            file_size: 256 #  256 MiB\n            flushers: 4\n            flush: false\n   \
-    \         reclaimers: 2\n            recover_concurrency: 16\n            admission_rate_limit: 256 # 256MiB/s\n     \
-    \       shards: 64\n            eviction: lru\n        num_concurrent_block_flushes: 40\n      sparse_index_manager_config:\n\
+    \ config. Leaving it set to 1k for consistency.\n            capacity: 1000\n            # In-memory part of the block\
+    \ cache. Upstream ships 8 GiB; the\n            # query node runs in 2 GiB on 3.9 GB workers (deploy/k0s).\n         \
+    \   mem: 700 # MiB\n            disk: 12884 # 12GiB\n            file_size: 256 #  256 MiB\n            flushers: 4\n\
+    \            flush: false\n            reclaimers: 2\n            recover_concurrency: 16\n            admission_rate_limit:\
+    \ 256 # 256MiB/s\n            shards: 64\n            eviction: lru\n        num_concurrent_block_flushes: 40\n      sparse_index_manager_config:\n\
     \        sparse_index_cache_config:\n          lru:\n            name: \"sparse_index_cache\"\n            capacity: 1000\n\
     \  hnsw_provider:\n    hnsw_temporary_path: \"~/tmp\"\n    hnsw_cache_config:\n      memory:\n        name: \"hnsw_cache\"\
     \n        capacity: 8589934592 # 8GB\n    permitted_parallelism: 180\n  spann_provider:\n    adaptive_search_nprobe: false\n\
@@ -1888,10 +1894,11 @@ data:
     \ 10000\n    active_io_tasks: 10000\n  blockfile_provider:\n    arrow:\n      block_manager_config:\n        max_block_size_bytes:\
     \ 8388608 # 8MB\n        block_cache_config:\n          disk:\n            dir: \"/cache/chroma/query-service/block-cache\"\
     \n            name: \"block_cache\"\n            # 1k blocks * 8MiB = 8GiB, this is actually ignored in the disk cache\
-    \ config. Leaving it set to 1k for consistency.\n            capacity: 1000\n            mem: 8000 # 8GiB\n          \
-    \  disk: 12884 # 12GiB\n            file_size: 256 #  256 MiB\n            flushers: 4\n            flush: false\n   \
-    \         reclaimers: 2\n            recover_concurrency: 16\n            admission_rate_limit: 256 # 256MiB/s\n     \
-    \       shards: 64\n            eviction: lru\n        num_concurrent_block_flushes: 40\n      sparse_index_manager_config:\n\
+    \ config. Leaving it set to 1k for consistency.\n            capacity: 1000\n            # In-memory part of the block\
+    \ cache. Upstream ships 8 GiB; the\n            # query node runs in 2 GiB on 3.9 GB workers (deploy/k0s).\n         \
+    \   mem: 700 # MiB\n            disk: 12884 # 12GiB\n            file_size: 256 #  256 MiB\n            flushers: 4\n\
+    \            flush: false\n            reclaimers: 2\n            recover_concurrency: 16\n            admission_rate_limit:\
+    \ 256 # 256MiB/s\n            shards: 64\n            eviction: lru\n        num_concurrent_block_flushes: 40\n      sparse_index_manager_config:\n\
     \        sparse_index_cache_config:\n          lru:\n            name: \"sparse_index_cache\"\n            capacity: 1000\n\
     \  hnsw_provider:\n    hnsw_temporary_path: \"~/tmp\"\n    hnsw_cache_config:\n      memory:\n        name: \"hnsw_cache\"\
     \n        capacity: 8589934592 # 8GB\n    permitted_parallelism: 180\n  spann_provider:\n    adaptive_search_nprobe: false\n\
@@ -2313,7 +2320,7 @@ metadata:
   name: compaction-service
   namespace: chroma
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: compaction-service
@@ -3098,3 +3105,60 @@ spec:
       - name: script
         configMap:
           name: vigil-corpus-loader
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: chroma-prefix
+  namespace: chroma
+spec:
+  stripPrefix:
+    prefixes:
+    - /chroma
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chroma
+  namespace: chroma
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: 'true'
+    traefik.ingress.kubernetes.io/router.middlewares: chroma-chroma-prefix@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+  - http:
+      paths:
+      - path: /chroma
+        pathType: Prefix
+        backend:
+          service:
+            name: chroma-gateway
+            port:
+              number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: chroma-gateway-from-traefik
+  namespace: chroma
+  labels:
+    app.kubernetes.io/part-of: chroma-distributed
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: chroma-gateway
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: traefik
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: traefik
+    ports:
+    - protocol: TCP
+      port: 8080

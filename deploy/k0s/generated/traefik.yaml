@@ -37,10 +37,12 @@ spec:
     name: web
     targetPort: web
     protocol: TCP
+    nodePort: 32479
   - port: 443
     name: websecure
     targetPort: websecure
     protocol: TCP
+    nodePort: 31365
 ---
 apiVersion: apps/v1
 kind: Deployment

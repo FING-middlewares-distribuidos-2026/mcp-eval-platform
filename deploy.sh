@@ -88,7 +88,14 @@
 #   DEPLOY_AUTOSCALER=openstack  deploy Cluster Autoscaler (ephemeral Nova VMs). Requires OS_* env vars:
 #                                OS_AUTH_URL OS_USERNAME OS_PASSWORD OS_PROJECT_NAME OS_USER_DOMAIN_NAME
 #                                OS_REGION_NAME AUTOSCALER_NODE_GROUP (+ optional AUTOSCALER_MIN/AUTOSCALER_MAX)
-#   ---- GPU node: scale-to-zero GPU Vigil (hack/gpu-node) ----
+#   ---- Vigil on the GPU PC, by API (hack/pc-services) ----
+#   VIGIL_REMOTE_URL             http://<PC ZeroTier IP>:<port> of the PC's token-checking Vigil proxy.
+#                                Set: instead of the in-cluster Vigil, deploy a relay with the same
+#                                Service/labels (manifests/vigil-remote.yaml) that adds the token
+#                                (Secret vigil-remote-token, hack/gitops/secrets.sh) and, with
+#                                DEPLOY_INGRESS=1, the /chroma route the PC's Vigil reads its corpus
+#                                through (manifests/ingress/chroma-route.yaml).
+#   ---- GPU node: scale-to-zero GPU Vigil (hack/gpu-node, archived) ----
 #   DEPLOY_KEDA=1                install KEDA (chart kedacore/keda@KEDA_CHART_VERSION, namespace keda,
 #                                values manifests/keda/values-mcp-eval.yaml)
 #   VIGIL_GPU=1                  deploy the GPU Vigil (hack/gpu-node/manifests/vigil-gpu.yaml) pinned to the
@@ -180,6 +187,13 @@ VIGIL_GPU="${VIGIL_GPU:-0}"
 VIGIL_GPU_IMG="${VIGIL_GPU_IMG:-$IMG_REGISTRY/vigil-llm-gpu:$IMG_TAG}"
 VIGIL_GPU_MEM_LIMIT="${VIGIL_GPU_MEM_LIMIT:-4Gi}"
 VIGIL_PROFILE="${VIGIL_PROFILE:-full}"
+VIGIL_REMOTE_URL="${VIGIL_REMOTE_URL:-}"
+if [ -n "$VIGIL_REMOTE_URL" ]; then
+  [[ "$VIGIL_REMOTE_URL" =~ ^http://([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+):([0-9]+)$ ]] \
+    || { echo "VIGIL_REMOTE_URL must be http://<IPv4>:<port>" >&2; exit 1; }
+  VIGIL_REMOTE_IP="${BASH_REMATCH[1]}"
+  VIGIL_REMOTE_PORT="${BASH_REMATCH[2]}"
+fi
 case "$VIGIL_PROFILE" in full|lite) ;; *) echo "VIGIL_PROFILE must be full or lite" >&2; exit 1 ;; esac
 # LLM provider: the personas in config/samples and Occludra's manifest are
 # written for OpenCode Zen; other providers are rendered in at apply time.
@@ -473,16 +487,26 @@ if [ "$DEPLOY_SECURITY_GATEWAYS" = "1" ]; then
     kubectl -n security-gateways create configmap vigil-yara-rules "${args[@]}" \
       --dry-run=client -o yaml | kubectl apply -f -
   }
+  # VIGIL_REMOTE_URL: Vigil runs on the GPU PC; a relay takes its place here.
+  apply_vigil() {
+    if [ -n "$VIGIL_REMOTE_URL" ]; then
+      sed -e "s|__VIGIL_REMOTE_URL__|$VIGIL_REMOTE_URL|" -e "s|__VIGIL_REMOTE_CIDR__|$VIGIL_REMOTE_IP/32|" \
+          -e "s|__VIGIL_REMOTE_PORT__|$VIGIL_REMOTE_PORT|" manifests/vigil-remote.yaml | kubectl apply -f -
+    elif [ "$MESH_ENFORCE" = "true" ]; then
+      apply_vigil_yara_rules
+      apply_gateway_manifest manifests/vigil-deployment.yaml
+    else
+      apply_vigil_yara_rules
+      substitute_gateway_images < manifests/vigil-deployment.yaml | filter_mesh_sidecars | kubectl apply -f -
+    fi
+  }
   if [ "$MESH_ENFORCE" = "true" ]; then
     apply_gateway_manifest manifests/occludra-deployment.yaml
     apply_gateway_manifest manifests/netbird-daemonset.yaml
-    apply_vigil_yara_rules
-    apply_gateway_manifest manifests/vigil-deployment.yaml
   else
     substitute_gateway_images < manifests/occludra-deployment.yaml | filter_mesh_sidecars | kubectl apply -f -
-    apply_vigil_yara_rules
-    substitute_gateway_images < manifests/vigil-deployment.yaml | filter_mesh_sidecars | kubectl apply -f -
   fi
+  apply_vigil
   # Container defaults for anything in the namespace without its own requests/limits.
   kubectl -n security-gateways apply -f manifests/limitrange.yaml
   # gateway-egress lets Occludra reach private addresses only on NetBird
@@ -670,6 +694,10 @@ if [ "$DEPLOY_INGRESS" = "1" ]; then
   # OpenCode clients outside the cluster reach Occludra at /llm/v1.
   if [ "$DEPLOY_SECURITY_GATEWAYS" = "1" ]; then
     kubectl apply -f manifests/ingress/llm-gateway.yaml
+    # The PC's Vigil reads the corpus through Traefik.
+    if [ -n "$VIGIL_REMOTE_URL" ]; then
+      kubectl apply -f manifests/ingress/chroma-route.yaml
+    fi
   fi
 fi
 

@@ -1,0 +1,38 @@
+# The only door to the PC's Vigil (hack/pc-services/compose.yaml).
+# Rendered by the nginx image's envsubst step: only variables present in
+# the environment are substituted, nginx's own $variables stay.
+#
+# Same paths as the cluster's relay (manifests/vigil-remote.yaml): the two
+# scans the platform makes and /settings for the health checks. Vigil's
+# other endpoints (/add/texts, /canary/*) stay closed.
+map_hash_bucket_size 128;
+map $http_authorization $vigil_caller {
+  default                     0;
+  "Bearer ${VIGIL_API_TOKEN}" 1;
+}
+server {
+  listen 8080;
+  server_tokens off;
+  client_max_body_size 4m;
+  proxy_read_timeout 300s;
+
+  location = /healthz {
+    access_log off;
+    return 200 "ok\n";
+  }
+  location ~ ^/analyze/(prompt|response)$ {
+    if ($vigil_caller = 0) { return 401; }
+    limit_except POST { deny all; }
+    proxy_set_header Authorization "";
+    proxy_pass http://vigil:5000;
+  }
+  location = /settings {
+    if ($vigil_caller = 0) { return 401; }
+    limit_except GET { deny all; }
+    proxy_set_header Authorization "";
+    proxy_pass http://vigil:5000;
+  }
+  location / {
+    return 403;
+  }
+}

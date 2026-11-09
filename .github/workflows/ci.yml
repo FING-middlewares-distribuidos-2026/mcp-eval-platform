@@ -87,7 +87,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: shell syntax
-        run: for f in deploy.sh hack/chroma/deploy.sh hack/local-llm/llm test/*.sh test/*/*.sh; do bash -n "$f" || exit 1; done
+        run: for f in deploy.sh hack/chroma/deploy.sh hack/local-llm/llm hack/pc-services/pc hack/gitops/secrets.sh test/*.sh test/*/*.sh; do bash -n "$f" || exit 1; done
       # kubectl (for kustomize) and python3 ship with the runner image; the
       # tests make their own PyYAML venv when it is missing.
       - run: test/deploy/manifests-test.sh
@@ -105,6 +105,8 @@ jobs:
       # A real Chroma behind the real chroma-gateway, in docker; the legacy
       # half downloads a subset of deadbits' corpora from HuggingFace.
       - run: test/vigil/remote-vectordb-test.sh
+      - name: Chroma client TLS options (PC Vigil through Traefik)
+        run: python3 test/vigil/remote_vectordb_tls_test.py
       - name: YARA rules against attack phrasings and benign text
         run: |
           python3 -m venv /tmp/yara && /tmp/yara/bin/pip install -q yara-python==4.3.1

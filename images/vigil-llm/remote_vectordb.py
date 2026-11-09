@@ -58,14 +58,23 @@ which wants a bearer token. The token comes from the environment variable
 named by [vectordb] token_env (default CHROMA_TOKEN, filled from a Secret),
 never from server.conf, and never appears in errors or logs.
 
+TLS (a Vigil outside the cluster, hack/pc-services): chroma_url may be
+https through Traefik (manifests/ingress/chroma-route.yaml). [vectordb]
+ca_file trusts the ingress' self-signed certificate, and tls_server_name
+checks the certificate against that name while connecting elsewhere, so
+the PC can enter through a node's ZeroTier address (Traefik's NodePort) and
+still verify the certificate issued for the ingress IP.
+
 Stdlib HTTP only (urllib), like the corpus loader.
 """
 
 import functools
+import http.client
 import json
 import math
 import os
 import re
+import ssl
 import threading
 import time
 import urllib.error
@@ -127,6 +136,38 @@ class RemoteVectorDBError(RuntimeError):
     """Chroma could not answer a query; the scan must fail closed."""
 
 
+class _NamedHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPS to host:port, verifying the certificate against server_name."""
+
+    def __init__(self, *args, server_name: str, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._server_name = server_name
+
+    def connect(self):
+        http.client.HTTPConnection.connect(self)  # plain TCP, no proxy tunnel
+        self.sock = self._context.wrap_socket(self.sock, server_hostname=self._server_name)
+
+
+class _NamedHTTPSHandler(urllib.request.HTTPSHandler):
+    def __init__(self, context: ssl.SSLContext, server_name: str):
+        super().__init__(context=context)
+        self._server_name = server_name
+
+    def https_open(self, req):
+        conn = functools.partial(_NamedHTTPSConnection, server_name=self._server_name)
+        return self.do_open(conn, req, context=self._context)
+
+
+def _opener(ca_file: str, tls_server_name: str):
+    """urllib opener for chroma_url: default when nothing is set."""
+    if not ca_file and not tls_server_name:
+        return urllib.request.build_opener()
+    ctx = ssl.create_default_context(cafile=ca_file or None)
+    if tls_server_name:
+        return urllib.request.build_opener(_NamedHTTPSHandler(ctx, tls_server_name))
+    return urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
+
+
 class RemoteVectorDB:
     def __init__(
         self,
@@ -140,6 +181,8 @@ class RemoteVectorDB:
         n_results: str = "5",
         timeout_s: str = "5",
         token_env: str = "CHROMA_TOKEN",
+        ca_file: str = "",
+        tls_server_name: str = "",
         embed_fn: Optional[Callable[[List[str]], List[List[float]]]] = None,
         **_unused,  # upstream's local-db keys (collection, db_dir, ...) stay in the conf, unused
     ):
@@ -156,6 +199,7 @@ class RemoteVectorDB:
             raise ValueError("[vectordb] collections is empty")
         self.n_results = int(n_results)
         self.timeout = float(timeout_s)
+        self._open = _opener(ca_file.strip(), tls_server_name.strip()).open
         self._ids: Dict[str, str] = {}
         self._meta: Dict[str, dict] = {}
         self._mode: Optional[str] = None  # "calibrated" | "legacy", decided on first use
@@ -394,7 +438,7 @@ class RemoteVectorDB:
             headers["Content-Type"] = "application/json"
         req = urllib.request.Request(url, data=data, method=method, headers=headers)
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            with self._open(req, timeout=self.timeout) as resp:
                 body = resp.read()
         except urllib.error.HTTPError as err:
             detail = err.read()[:200].decode(errors="replace")
@@ -406,8 +450,9 @@ class RemoteVectorDB:
             # Refused: nothing listens there, a retry will not change that, and
             # an unreachable Chroma must fail closed fast. Timeouts and DNS
             # failures are the brief, frequent ones a slow cluster produces.
+            # A certificate that does not verify will not verify on retry.
             reason = getattr(err, "reason", err)
-            e.transient = not isinstance(reason, ConnectionRefusedError)
+            e.transient = not isinstance(reason, (ConnectionRefusedError, ssl.SSLError))
             raise e from err
         try:
             return json.loads(body)

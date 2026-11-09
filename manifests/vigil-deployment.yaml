@@ -90,7 +90,9 @@ data:
     collections = vigil_e5s_v3_whole
     sentence_collections = vigil_e5s_v3_sentence
     benign_collections = vigil_e5s_v3_benign
-    timeout_s = 5
+    # Per Chroma call. 5 s timed out under the k0s control plane's slow
+    # periods (2026-10-28); the client also retries transient failures.
+    timeout_s = 30
     n_results = 5
     # Upstream's local-database keys; unused while chroma_url is set.
     collection = vigil-local

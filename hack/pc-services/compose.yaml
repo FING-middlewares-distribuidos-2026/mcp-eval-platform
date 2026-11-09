@@ -1,0 +1,121 @@
+# What the GPU PC serves to the k0s cluster, by API, over ZeroTier.
+# Started and stopped by hack/pc-services/pc (never at boot); see README.md.
+#
+#   llm         llama.cpp's OpenAI-compatible server on the GPU (Gemma).
+#               Occludra calls it with LOCAL_LLM_API_KEY.
+#   vigil       the prompt-injection scanner, the same image and server.conf
+#               the cluster used, reading its corpus from the cluster's
+#               Chroma through Traefik. Not published: only vigil-auth
+#               reaches it.
+#   vigil-auth  nginx in front of Vigil: bearer token + the two paths the
+#               platform calls. The cluster's relay (manifests/vigil-remote.yaml)
+#               sends the token.
+#
+# Secrets reach the containers as environment variables taken from `pc`'s
+# environment (read from ~/.config/mcp-eval), never on a command line.
+name: mcp-pc
+
+services:
+  llm:
+    container_name: mcp-local-llm
+    image: ghcr.io/ggml-org/llama.cpp@sha256:b0baccbe2e00b5d74e63f85f9f023c93d61d0f329475269e1e7002e87eb875ea
+    restart: "no"
+    ports:
+      - "${PC_IP:?}:${LLM_PORT:-8080}:8080"
+    environment:
+      - LLAMA_API_KEY
+    volumes:
+      - "${LLM_MODEL_DIR:?}:/models:ro"
+    command:
+      - -m
+      - /models/${LLM_MODEL_FILE:?}
+      - --alias
+      - ${LLM_MODEL_ALIAS:?}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - -c
+      - "${LLM_CTX:-65536}"
+      - -ngl
+      - "999"
+      - --n-cpu-moe
+      - "0"
+      - --reasoning
+      - auto
+      - --reasoning-budget
+      - "${LLM_REASONING_BUDGET:-0}"
+      - --jinja
+      - --no-webui
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
+
+  vigil:
+    image: ${VIGIL_IMAGE:?}
+    restart: "no"
+    # The cluster started the server directly, skipping upstream's
+    # entrypoint dataset loader (manifests/vigil-deployment.yaml).
+    command: ["python", "vigil-server.py", "-c", "conf/server.conf"]
+    # Your own user: the model cache below is a directory you own.
+    user: "${PC_UID:?}:${PC_GID:?}"
+    read_only: true
+    environment:
+      - CHROMA_TOKEN
+      - HOME=/tmp
+      - SENTENCE_TRANSFORMERS_HOME=/cache/st
+      - HF_HOME=/cache/hf
+    volumes:
+      - "${PC_RUN_DIR:?}/conf:/app/conf:ro"
+      - "${PC_RUN_DIR:?}/yara-rules:/app/yara-rules:ro"
+      - "${PC_RUN_DIR:?}/ingress-ca.pem:/app/ingress-ca.pem:ro"
+      - "${PC_CACHE_DIR:?}:/cache"
+    tmpfs:
+      - /tmp:size=1g
+      - /app/logs:size=64m,uid=${PC_UID},gid=${PC_GID}
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    mem_limit: 4g
+    cpus: 4
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/settings', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      # First start downloads the classifier and the embedder (~1.5 GB).
+      start_period: 600s
+
+  vigil-auth:
+    image: nginxinc/nginx-unprivileged:1.29.1-alpine@sha256:27985295bdb22a1ef8f712863210bd5877c0f3006494a593e86b3fe0fa55467e
+    restart: "no"
+    depends_on:
+      vigil:
+        condition: service_started
+    ports:
+      - "${PC_IP:?}:${VIGIL_PORT:-5000}:8080"
+    environment:
+      - VIGIL_API_TOKEN
+    # An empty token would make "Bearer " the credential: refuse to start.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        [ "$${#VIGIL_API_TOKEN}" -ge 32 ] || { echo "vigil-auth: token missing or shorter than 32 chars" >&2; exit 1; }
+        exec /docker-entrypoint.sh nginx -g 'daemon off;'
+    read_only: true
+    volumes:
+      - "./vigil-auth.conf.template:/etc/nginx/templates/default.conf.template:ro"
+    tmpfs:
+      - /etc/nginx/conf.d:uid=101,gid=101
+      - /tmp:uid=101,gid=101
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
