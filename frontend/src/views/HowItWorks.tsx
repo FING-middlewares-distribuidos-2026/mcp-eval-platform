@@ -22,7 +22,7 @@ const STAGES: { name: string; what: string }[] = [
   },
   {
     name: "El modelo",
-    what: "LFM 2.5, en la GPU de una PC del equipo. Nada se manda a un servicio en la nube.",
+    what: "Gemma 4 12B, en la GPU de una PC del equipo. Nada se manda a un servicio en la nube.",
   },
 ];
 

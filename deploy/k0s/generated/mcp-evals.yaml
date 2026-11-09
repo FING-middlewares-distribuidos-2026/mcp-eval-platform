@@ -119,8 +119,8 @@ spec:
     retryCount: 3
     timeoutMs: 240000
   model:
-    modelID: lfm2.5-24b-a2b
-    contextTokens: 32768
+    modelID: gemma-4-12b-it
+    contextTokens: 56000
     providerID: local
   outputFormat:
     schema:
@@ -303,8 +303,8 @@ spec:
     retryCount: 3
     timeoutMs: 240000
   model:
-    modelID: lfm2.5-24b-a2b
-    contextTokens: 32768
+    modelID: gemma-4-12b-it
+    contextTokens: 56000
     providerID: local
   outputFormat:
     schema:
@@ -435,8 +435,8 @@ spec:
     retryCount: 3
     timeoutMs: 300000
   model:
-    modelID: lfm2.5-24b-a2b
-    contextTokens: 32768
+    modelID: gemma-4-12b-it
+    contextTokens: 56000
     providerID: local
   outputFormat:
     schema:
@@ -613,8 +613,8 @@ spec:
     retryCount: 3
     timeoutMs: 180000
   model:
-    modelID: lfm2.5-24b-a2b
-    contextTokens: 32768
+    modelID: gemma-4-12b-it
+    contextTokens: 56000
     providerID: local
   outputFormat:
     schema:
