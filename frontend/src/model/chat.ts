@@ -15,6 +15,16 @@ export interface GatewayHop {
   durationMs: number;
   requestBytes: number;
   responseBytes: number;
+  /** Set when Vigil screened the call and Occludra refused it (or could not scan). */
+  injection?: InjectionVerdict;
+}
+
+/** Occludra's prompt-injection decision (images/occludra-gateway/injection.go). */
+export interface InjectionVerdict {
+  /** "request": the message going to the model; "response": the model's answer. */
+  direction: "request" | "response";
+  scanners?: string[];
+  error?: string;
 }
 
 export interface ChatReply {
@@ -40,6 +50,7 @@ export const DETECTOR_LABEL: Record<string, string> = {
   "api-key": "clave de API",
   "bearer-token": "token de acceso",
   "password-context": "contraseña",
+  "password-context-ambiguous": "contraseña",
   "secret-assignment": "secreto en código",
   "person-name-context": "nombre de persona",
   "large-amount": "monto grande",
@@ -48,4 +59,27 @@ export const DETECTOR_LABEL: Record<string, string> = {
 
 export function detectorLabel(name: string): string {
   return DETECTOR_LABEL[name] ?? name;
+}
+
+/** Plain-language names for Vigil's scanners, as its messages name them. */
+export function scannerLabel(name: string): string {
+  if (/yara/i.test(name)) return "reglas YARA";
+  if (/transformer/i.test(name)) return "clasificador";
+  if (/vector/i.test(name)) return "ataques conocidos";
+  return name;
+}
+
+/** "Vigil (reglas YARA, clasificador) frenó tu mensaje", or null when Vigil did not act. */
+export function injectionSummary(hop: Pick<GatewayHop, "injection">): string | null {
+  const v = hop.injection;
+  if (!v) return null;
+  if (v.error) {
+    return v.direction === "request"
+      ? "Vigil no pudo revisar tu mensaje y Occludra no lo mandó, por seguridad."
+      : "Vigil no pudo revisar la respuesta y Occludra no te la mostró, por seguridad.";
+  }
+  const by = v.scanners?.length ? ` (${v.scanners.map(scannerLabel).join(", ")})` : "";
+  return v.direction === "request"
+    ? `Vigil detectó un posible prompt injection en el mensaje${by}: no llegó al modelo.`
+    : `Vigil detectó un posible prompt injection en la respuesta del modelo${by}: no se mostró.`;
 }

@@ -2,7 +2,7 @@
 // one answer took (browser -> OpenCode -> Occludra -> the PC -> the model).
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import type { Turn } from "../data/useChat.ts";
-import { detectorLabel } from "../model/chat.ts";
+import { detectorLabel, injectionSummary, scannerLabel } from "../model/chat.ts";
 import { friendlyDuration, friendlyModel } from "../model/story.ts";
 
 interface ConversationProps {
@@ -119,14 +119,17 @@ export function maskedSummary(turn: Turn): string | null {
 
 export function Path({ turn }: { turn: Turn }) {
   const r = turn.reply;
-  const calls = r?.gateway ?? null;
+  const calls = r?.gateway ?? turn.gateway ?? null;
   const waiting = !r && !turn.error;
   const masked = (calls ?? []).reduce((acc, c) => {
     for (const [k, n] of Object.entries(c.redactions)) acc[k] = (acc[k] ?? 0) + n;
     return acc;
   }, {} as Record<string, number>);
   const maskedTotal = Object.values(masked).reduce((a, b) => a + b, 0);
-  const blocked = calls?.find((c) => c.blockedBy);
+  const blocked = calls?.find((c) => c.blockedBy && !c.injection);
+  const outbound = calls?.find((c) => c.injection?.direction === "request");
+  const inbound = calls?.find((c) => c.injection?.direction === "response");
+  const stopped = !!blocked || !!outbound;
   const upstream = calls?.find((c) => c.upstream)?.upstream;
   const modelMs = calls?.reduce((a, c) => a + c.durationMs, 0);
   const state = (done: boolean): HopState => (turn.error ? "fail" : waiting ? "wait" : done ? "ok" : "skip");
@@ -160,25 +163,49 @@ export function Path({ turn }: { turn: Turn }) {
       state: blocked ? "warn" : state(true),
     },
     {
-      name: "Salida a la PC",
-      did: `Sale del cluster por la VPN (ZeroTier) hacia la PC${upstream ? ` (${upstream})` : ""}. Nada va a un servicio en la nube.`,
-      state: blocked ? "skip" : state(!!calls?.length || !!r),
+      name: "Vigil, a la ida",
+      did: outbound
+        ? injectionSummary(outbound)!
+        : calls === null
+          ? "Revisa si tu mensaje trae instrucciones escondidas para el modelo (prompt injection)."
+          : blocked
+            ? "No llegó a revisar: Occludra ya había frenado el mensaje."
+            : "Revisó tu mensaje y no encontró instrucciones escondidas.",
+      detail: outbound?.injection?.scanners?.length ? `detectó: ${outbound.injection.scanners.map(scannerLabel).join(", ")}` : undefined,
+      state: outbound ? (outbound.injection?.error ? "fail" : "warn") : blocked ? "skip" : state(true),
     },
     {
-      name: friendlyModel(r?.model ?? "local/lfm"),
-      did: waiting ? "Pensando…" : r ? "Respondió." : "No llegó a responder.",
+      name: "Salida a la PC",
+      did: `Sale del cluster por la VPN (ZeroTier) hacia la PC${upstream ? ` (${upstream})` : ""}. Nada va a un servicio en la nube.`,
+      state: stopped ? "skip" : state(!!calls?.length || !!r),
+    },
+    {
+      name: friendlyModel(r?.model ?? "local/gemma"),
+      did: waiting ? "Pensando…" : stopped ? "No recibió nada." : r || inbound ? "Respondió." : "No llegó a responder.",
       detail: r
         ? [modelMs !== undefined ? `tardó ${friendlyDuration(modelMs)}` : undefined, `${r.tokens.input} tokens leídos, ${r.tokens.output} escritos`]
             .filter(Boolean)
             .join(", ")
         : undefined,
-      state: blocked ? "skip" : state(!!r && !r.error),
+      state: stopped ? "skip" : inbound ? "ok" : state(!!r && !r.error),
     },
     {
-      name: "Vuelta",
-      did: r ? "La respuesta vuelve por el mismo camino hasta tu pantalla. Occludra no la modifica." : "Esperando la respuesta.",
+      name: "Vigil, a la vuelta",
+      did: inbound
+        ? injectionSummary(inbound)!
+        : stopped
+          ? "No hubo respuesta que revisar."
+          : r
+            ? "Revisó la respuesta del modelo antes de mostrártela y no encontró instrucciones escondidas."
+            : "Revisa la respuesta del modelo antes de que llegue a tu pantalla.",
+      detail: inbound?.injection?.scanners?.length ? `detectó: ${inbound.injection.scanners.map(scannerLabel).join(", ")}` : undefined,
+      state: inbound ? (inbound.injection?.error ? "fail" : "warn") : stopped ? "skip" : state(!!r),
+    },
+    {
+      name: "Tu pantalla",
+      did: inbound ? "Occludra no te mostró la respuesta." : r ? "La respuesta llegó por el mismo camino." : "Esperando la respuesta.",
       detail: r ? `${friendlyDuration(r.totalMs)} en total` : undefined,
-      state: state(!!r),
+      state: inbound ? "skip" : state(!!r),
     },
   ];
 

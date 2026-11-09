@@ -7,9 +7,11 @@ import { useReplay, useSnapshot } from "./data/hooks.ts";
 import { LiveSource } from "./data/live.ts";
 import type { Mode } from "./data/source.ts";
 import { go, href, useRoute } from "./router.ts";
+import { ChatPage } from "./views/ChatPage.tsx";
 import { HowItWorks } from "./views/HowItWorks.tsx";
 import { NewServerSheet } from "./views/NewServerSheet.tsx";
 import { ServerPage } from "./views/ServerPage.tsx";
+import { SecurityPage } from "./views/SecurityPage.tsx";
 import { ServersPage } from "./views/ServersPage.tsx";
 import "./styles/shell.css";
 import "./styles/pages.css";
@@ -69,8 +71,17 @@ export function App() {
           <span>MCP Eval</span>
         </a>
         <nav className="nav" aria-label="Secciones">
-          <a href={href({ page: "servers" })} aria-current={route.page !== "how" ? "page" : undefined}>
-            Servidores
+          <a
+            href={href({ page: "servers" })}
+            aria-current={route.page === "servers" || route.page === "server" ? "page" : undefined}
+          >
+            Evaluar un MCP
+          </a>
+          <a href={href({ page: "chat" })} aria-current={route.page === "chat" ? "page" : undefined}>
+            Chat protegido
+          </a>
+          <a href={href({ page: "security" })} aria-current={route.page === "security" ? "page" : undefined}>
+            Registro de seguridad
           </a>
           <a href={href({ page: "how" })} aria-current={route.page === "how" ? "page" : undefined}>
             Cómo funciona
@@ -114,7 +125,9 @@ export function App() {
         {route.page === "server" && (
           <ServerPage snap={snap} source={source} mode={mode} theme={theme} name={route.server} runName={route.run} />
         )}
-        {route.page === "how" && <HowItWorks mode={mode} />}
+        {route.page === "chat" && <ChatPage mode={mode} />}
+        {route.page === "security" && <SecurityPage mode={mode} />}
+        {route.page === "how" && <HowItWorks />}
       </main>
 
       {creating && (

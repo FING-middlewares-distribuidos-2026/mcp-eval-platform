@@ -64,10 +64,10 @@ async function readBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-async function journal(after: number): Promise<GatewayHop[] | null> {
+async function journal(after: number, client = CLIENT): Promise<GatewayHop[] | null> {
   if (!INSPECT_URL) return null;
   try {
-    const res = await fetch(`${INSPECT_URL}/requests?client=${CLIENT}&after=${after}`, { signal: AbortSignal.timeout(5000) });
+    const res = await fetch(`${INSPECT_URL}/requests?client=${client}&after=${after}`, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) return null;
     const body = (await res.json()) as { entries?: GatewayHop[] };
     return body.entries ?? [];
@@ -141,8 +141,9 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse): Pro
   if (busy) return send(res, 429, { error: "El modelo está respondiendo otra pregunta. Probá en unos segundos." });
   busy = true;
   const started = Date.now();
+  let cursor: number | null = null;
   try {
-    const cursor = await journalCursor();
+    cursor = await journalCursor();
     const session = requested ?? (await newSession());
     if (run) rememberSession(session, run);
     const prompt = context ? `${context}\n\nPregunta: ${text}` : text;
@@ -181,12 +182,34 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse): Pro
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const down = /fetch failed|ECONNREFUSED|ENOTFOUND|timeout/i.test(message);
+    // Occludra may have refused the call (Vigil, a block detector): its
+    // journal says why, and the person should see that, not a bare error.
+    const hops = cursor === null ? null : await journal(cursor);
     send(res, 502, {
       error: down
         ? "No se pudo hablar con OpenCode o con el modelo. ¿Está prendido el modelo (Gemma) en la PC?"
         : `Falló la consulta: ${message}`,
+      gateway: hops,
     });
   } finally {
     busy = false;
   }
+}
+
+// GET /api/gateway?after=<id>: what Occludra did for the protected chat and
+// for OpenCode clients outside the cluster (client "external",
+// manifests/ingress/llm-gateway.yaml). Metadata only, like the journal.
+const GATEWAY_CLIENTS = ["ui-chat", "external"];
+
+export async function handleGateway(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (req.method !== "GET") return send(res, 405, { error: "Usá GET." });
+  const after = Number(new URL(req.url ?? "/", "http://x").searchParams.get("after") ?? 0) || 0;
+  const [, ...rest] = CHAT_MODEL.split("/");
+  if (!INSPECT_URL) return send(res, 200, { enabled: false, model: rest.join("/"), entries: [] });
+  const lists = await Promise.all(GATEWAY_CLIENTS.map((c) => journal(after, c)));
+  if (lists.every((l) => l === null)) return send(res, 502, { error: "No se pudo leer el registro de Occludra." });
+  const entries = lists
+    .flatMap((l) => l ?? [])
+    .sort((a, b) => a.at.localeCompare(b.at));
+  send(res, 200, { enabled: true, model: rest.join("/"), entries });
 }
