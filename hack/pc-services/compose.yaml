@@ -64,9 +64,11 @@ services:
   vigil:
     image: ${VIGIL_IMAGE:?}
     restart: "no"
-    # The cluster started the server directly, skipping upstream's
-    # entrypoint dataset loader (manifests/vigil-deployment.yaml).
-    command: ["python", "vigil-server.py", "-c", "conf/server.conf"]
+    # Start the server directly, skipping upstream's entrypoint dataset
+    # loader, as the cluster did (a Kubernetes `command` replaces the
+    # entrypoint; in compose that is `entrypoint`).
+    entrypoint: ["python", "vigil-server.py", "-c", "conf/server.conf"]
+    command: []
     # Your own user: the model cache below is a directory you own.
     user: "${PC_UID:?}:${PC_GID:?}"
     read_only: true
@@ -88,7 +90,9 @@ services:
     mem_limit: 4g
     cpus: 4
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/settings', timeout=5)"]
+      # TCP, like the cluster's probes: upstream's /settings answers 500
+      # (it reads vigil.config, which the pinned commit renamed).
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 5000), 5)"]
       interval: 15s
       timeout: 10s
       retries: 3
@@ -119,3 +123,12 @@ services:
       - /tmp:uid=101,gid=101
     security_opt: ["no-new-privileges:true"]
     cap_drop: ["ALL"]
+
+networks:
+  default:
+    driver_opts:
+      # The ZeroTier path to the cluster nodes loses packets above ~1228
+      # bytes (measured with ping -M do, hack/gpu-node). Containers would
+      # announce a 1460-byte MSS and TLS handshakes to Traefik stalled;
+      # 1200 keeps every segment under it.
+      com.docker.network.driver.mtu: "1200"

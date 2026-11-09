@@ -12,7 +12,7 @@
 # The relay adds the PC's bearer token (Secret vigil-remote-token, created
 # by hack/gitops/secrets.sh, never in git) and forwards only the two calls
 # the platform makes (POST /analyze/prompt, /analyze/response) plus
-# GET /settings for the readiness probe. The PC's own proxy checks the
+# GET /ready for the readiness probe. The PC's own proxy checks the
 # token and allows the same paths (hack/pc-services/vigil-auth.conf.template).
 #
 # PC down -> the relay answers 502 and the probe takes it out of the
@@ -51,7 +51,7 @@ data:
         proxy_set_header Authorization "Bearer ${VIGIL_REMOTE_TOKEN}";
         proxy_pass ${VIGIL_REMOTE_URL};
       }
-      location = /settings {
+      location = /ready {
         limit_except GET { deny all; }
         proxy_set_header Authorization "Bearer ${VIGIL_REMOTE_TOKEN}";
         proxy_pass ${VIGIL_REMOTE_URL};
@@ -111,7 +111,7 @@ spec:
               containerPort: 5000
           # Ready only while the PC's Vigil answers through its token check.
           readinessProbe:
-            httpGet: {path: /settings, port: http}
+            httpGet: {path: /ready, port: http}
             periodSeconds: 15
             timeoutSeconds: 10
             failureThreshold: 2

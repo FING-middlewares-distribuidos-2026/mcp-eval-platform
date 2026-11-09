@@ -22,7 +22,7 @@ on its ZeroTier address, and the k0s cluster calls them:
   the cluster ran (`manifests/vigil-deployment.yaml`), our YARA rules, and
   the corpus read from the cluster's Chroma through Traefik. Not published.
 - **vigil-auth** — nginx in front of Vigil: checks the bearer token and lets
-  only the two scan calls (and `GET /settings` for health) through.
+  only the two scan calls (and `GET /ready` for the relay's probe) through.
 - In the cluster, `manifests/vigil-remote.yaml` keeps `vigil-service`, now a
   relay that adds the token. Nothing that calls Vigil changed.
 

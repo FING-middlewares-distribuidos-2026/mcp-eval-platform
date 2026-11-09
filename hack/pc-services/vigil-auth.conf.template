@@ -3,8 +3,8 @@
 # the environment are substituted, nginx's own $variables stay.
 #
 # Same paths as the cluster's relay (manifests/vigil-remote.yaml): the two
-# scans the platform makes and /settings for the health checks. Vigil's
-# other endpoints (/add/texts, /canary/*) stay closed.
+# scans the platform makes and /ready for its readiness probe. Vigil's
+# other endpoints (/settings, /add/texts, /canary/*) stay closed.
 map_hash_bucket_size 128;
 map $http_authorization $vigil_caller {
   default                     0;
@@ -26,11 +26,19 @@ server {
     proxy_set_header Authorization "";
     proxy_pass http://vigil:5000;
   }
-  location = /settings {
+  # Ready = Vigil's web server answers. Vigil has no health route
+  # (/settings answers 500 at the pinned commit), so any answer from Flask,
+  # its 404 for "/" included, means up; nginx's own 502 means down.
+  location = /ready {
     if ($vigil_caller = 0) { return 401; }
     limit_except GET { deny all; }
     proxy_set_header Authorization "";
-    proxy_pass http://vigil:5000;
+    proxy_intercept_errors on;
+    error_page 404 405 500 = @vigil_up;
+    proxy_pass http://vigil:5000/;
+  }
+  location @vigil_up {
+    return 200 "ready\n";
   }
   location / {
     return 403;
