@@ -6,14 +6,14 @@
 // holds metadata only: redaction counts, status, timing, sizes.
 //
 // Env: CHAT_URL (OpenCode server; chat is off when unset), CHAT_MODEL
-// (provider/model, default local/lfm2.5-24b-a2b), OCCLUDRA_INSPECT_URL
+// (provider/model, default local/gemma-4-12b-it), OCCLUDRA_INSPECT_URL
 // (journal base URL, optional), OPENCODE_SERVER_PASSWORD (optional basic auth).
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { isSameOrigin } from "./origin.ts";
 import type { ChatReply, GatewayHop } from "../src/model/chat.ts";
 
 const CHAT_URL = (process.env["CHAT_URL"] ?? "").replace(/\/$/, "");
-const CHAT_MODEL = process.env["CHAT_MODEL"] ?? "local/lfm2.5-24b-a2b";
+const CHAT_MODEL = process.env["CHAT_MODEL"] ?? "local/gemma-4-12b-it";
 const INSPECT_URL = (process.env["OCCLUDRA_INSPECT_URL"] ?? "").replace(/\/$/, "");
 const PASSWORD = process.env["OPENCODE_SERVER_PASSWORD"] ?? "";
 const CLIENT = "ui-chat";

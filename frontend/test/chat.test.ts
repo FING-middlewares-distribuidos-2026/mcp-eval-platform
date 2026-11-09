@@ -22,7 +22,7 @@ const opencode = createServer((req, res) => {
     journalEntries.push({ id: journalEntries.length + 1, client: "ui-chat", redactions: { email: 1 }, status: 200, durationMs: 900, requestBytes: 700, responseBytes: 300, upstream: "10.147.17.21:8080", at: "", servedBy: "primary" });
     res.end(
       JSON.stringify({
-        info: { providerID: "local", modelID: "lfm2.5-24b-a2b", tokens: { input: 40, output: 12 }, time: { created: 1, completed: 1001 } },
+        info: { providerID: "local", modelID: "gemma-4-12b-it", tokens: { input: 40, output: 12 }, time: { created: 1, completed: 1001 } },
         parts: [{ type: "step-start" }, { type: "text", text: "Hola." }],
       }),
     );
@@ -72,7 +72,7 @@ describe("POST /api/chat", () => {
     expect(reply.opencodeMs).toBe(1000);
     const message = seen.find((s) => s.path.endsWith("/message"))!.body as { tools: object; model: object };
     expect(message.tools).toEqual({});
-    expect(message.model).toEqual({ providerID: "local", modelID: "lfm2.5-24b-a2b" });
+    expect(message.model).toEqual({ providerID: "local", modelID: "gemma-4-12b-it" });
   });
 
   it("reuses the session the browser sends", async () => {

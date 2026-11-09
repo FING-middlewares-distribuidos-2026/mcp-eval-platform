@@ -46,7 +46,7 @@ spec:
         - name: CHAT_URL
           value: http://opencode-chat.mcp-eval-ui.svc.cluster.local:4096
         - name: CHAT_MODEL
-          value: local/lfm2.5-24b-a2b
+          value: local/gemma-4-12b-it
         - name: OCCLUDRA_INSPECT_URL
           value: http://occludra-service.security-gateways.svc.cluster.local:8081
         readinessProbe:
@@ -167,11 +167,11 @@ spec:
           containerPort: 4096
         env:
         - name: OPENCODE_CONFIG_CONTENT
-          value: "{\"model\": \"local/lfm2.5-24b-a2b\", \"permission\": \"deny\", \"autoupdate\": false, \"share\": \"disabled\"\
+          value: "{\"model\": \"local/gemma-4-12b-it\", \"permission\": \"deny\", \"autoupdate\": false, \"share\": \"disabled\"\
             , \"snapshot\": false, \"provider\": {\"local\": {\"npm\": \"@ai-sdk/openai-compatible\", \"name\": \"local\"\
             , \"options\": {\"baseURL\": \"http://occludra-service.security-gateways.svc.cluster.local:8080/v1\", \"headers\"\
-            : {\"X-Occludra-Client\": \"ui-chat\"}, \"apiKey\": \"egress-via-occludra\"}, \"models\": {\"lfm2.5-24b-a2b\"\
-            : {\"name\": \"lfm2.5-24b-a2b\", \"tool_call\": false, \"limit\": {\"context\": 32768, \"output\": 8192}}}}},\
+            : {\"X-Occludra-Client\": \"ui-chat\"}, \"apiKey\": \"egress-via-occludra\"}, \"models\": {\"gemma-4-12b-it\"\
+            : {\"name\": \"gemma-4-12b-it\", \"tool_call\": false, \"limit\": {\"context\": 56000, \"output\": 8192}}}}},\
             \ \"agent\": {\"build\": {\"prompt\": \"Sos el asistente de la plataforma MCP Eval. Respond\xE9 en espa\xF1ol,\
             \ breve y claro. No ten\xE9s herramientas: no pod\xE9s leer archivos, ejecutar comandos ni navegar.\"}}}"
         readinessProbe:
