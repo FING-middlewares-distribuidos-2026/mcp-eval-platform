@@ -403,7 +403,11 @@ class RemoteVectorDB:
             raise e from err
         except (urllib.error.URLError, OSError, TimeoutError) as err:
             e = RemoteVectorDBError(f"{method} {url}: {err}")
-            e.transient = True
+            # Refused: nothing listens there, a retry will not change that, and
+            # an unreachable Chroma must fail closed fast. Timeouts and DNS
+            # failures are the brief, frequent ones a slow cluster produces.
+            reason = getattr(err, "reason", err)
+            e.transient = not isinstance(reason, ConnectionRefusedError)
             raise e from err
         try:
             return json.loads(body)
