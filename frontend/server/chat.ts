@@ -1,7 +1,7 @@
 // POST /api/chat: one message to the in-cluster OpenCode server, plus what
 // Occludra did with the model calls it caused. OpenCode runs with every tool
 // denied and its only provider pinned to Occludra (frontend/deploy/ui-chat.yaml),
-// so the answer comes from the local LFM through the same egress gateway the
+// so the answer comes from the local model (Gemma 4 12B) through the same egress gateway the
 // evaluations use. Occludra's journal (images/occludra-gateway/journal.go)
 // holds metadata only: redaction counts, status, timing, sizes.
 //
@@ -183,7 +183,7 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse): Pro
     const down = /fetch failed|ECONNREFUSED|ENOTFOUND|timeout/i.test(message);
     send(res, 502, {
       error: down
-        ? "No se pudo hablar con OpenCode o con el modelo. ¿Está prendido el LFM en la PC?"
+        ? "No se pudo hablar con OpenCode o con el modelo. ¿Está prendido el modelo (Gemma) en la PC?"
         : `Falló la consulta: ${message}`,
     });
   } finally {

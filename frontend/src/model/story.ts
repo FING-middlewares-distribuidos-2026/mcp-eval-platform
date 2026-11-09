@@ -85,6 +85,7 @@ const RISK_ANSWER: Record<Exclude<RiskCategory, "Unknown">, [Verdict["state"], s
 
 export function friendlyModel(model: string | undefined): string {
   if (!model) return "el modelo";
+  if (/gemma/i.test(model)) return "Gemma 4 12B, en la GPU de la PC";
   if (/lfm/i.test(model)) return "LFM 2.5, en la GPU de la PC";
   return model.replace(/^[^/]+\//, "");
 }
