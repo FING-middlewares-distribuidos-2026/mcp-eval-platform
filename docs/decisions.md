@@ -441,3 +441,22 @@ Decisions made before this log existed are not back-filled here.
 - **Who decided:** Juan (both moves); Claude (compose layout, an internal
   Docker network instead of a token, the request values, removing the
   unused route, `ssa: IfNotPresent` on the MemberLists).
+
+### 2026-11-10 — Occludra's two-sided Vigil scan records, it does not block
+- **Decision:** `VIGIL_IN_ACTION=log` in `deploy/k0s/render.env` (it was
+  `block` since f0bee75, which copied into git what ran live by
+  `kubectl set env`). The scan stays on in both directions and keeps its
+  log line and metric. Blocking an injection for the UI chat and external
+  clients stays with `policy.injection`, unchanged.
+- **Reason:** the two-sided scan reads the whole request, system prompt
+  included, for every client. Vigil flags the UI chat's own system prompt
+  (trained head, sentence "Respondé en español, breve y claro."), so with
+  `block` the chat answered 403 `vigil_block` to every message, measured
+  with "¿Cuál es la capital de Argentina?". Evaluation requests pass
+  through the same scan and quote the MCP under test (not measured).
+- **Alternatives:** leave `block` (chat unusable); turn the scan off
+  (loses the record); change the scan to skip system messages (a change to
+  a teammate's feature).
+- **Who decided:** Claude, while Juan was away and had asked for a working
+  platform; Juan to confirm or revert (one line). `DEMO.md` sets `block` by
+  hand for its demo and is not affected.
