@@ -52,9 +52,14 @@ data:
     \ the\n  # model's answer is held and scanned before it is released. Only these\n  # clients (X-Occludra-Client) are screened:\
     \ the UI chat and OpenCode\n  # clients from outside the cluster (manifests/ingress/llm-gateway.yaml).\n  # Evaluation\
     \ traffic names no client: the evaluator scans MCP output\n  # with Vigil itself, and its prompts quote the hostile MCP\
-    \ on purpose.\n  clients: [\"ui-chat\", \"external\"]\n  scan_requests: true\n  scan_responses: true\n  # Vigil down or\
-    \ erroring: refuse (block) rather than pass unscreened.\n  on_vigil_error: block\nlogging:\n  # Never persist prompt content\
-    \ in gateway logs; count and classify only.\n  log_prompts: false\n  log_redactions: true\n"
+    \ on purpose.\n  clients: [\"ui-chat\", \"external\"]\n  scan_requests: true\n  scan_responses: true\n  # Only YARA (our\
+    \ rules, manifests/vigil-yara, English and Spanish)\n  # refuses. The transformer is an English model that flags ordinary\n\
+    \  # Spanish requests (\"contame un chiste\") and anything with [REDACTED];\n  # the vector corpus matches any talk about\
+    \ passwords (password-game\n  # attacks). Measured 2026-11-10 on 40 normal chat messages: any\n  # scanner refused 26,\
+    \ two scanners 7, YARA 0. Their hits are logged\n  # and counted (occludra_injection_scans_total{outcome=\"warning\"}).\n\
+    \  min_scanners: 1\n  count_scanners: [\"YARA\"]\n  # Vigil down or erroring: refuse (block) rather than pass unscreened.\n\
+    \  on_vigil_error: block\nlogging:\n  # Never persist prompt content in gateway logs; count and classify only.\n  log_prompts:\
+    \ false\n  log_redactions: true\n"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -110,7 +115,7 @@ spec:
           sizeLimit: 128Mi
       containers:
       - name: gateway
-        image: docker.io/jjhonson/occludra-gateway:sha-8467cf9
+        image: docker.io/jjhonson/occludra-gateway:sha-8eca628
         imagePullPolicy: Always
         ports:
         - name: http
