@@ -105,9 +105,8 @@
 #   VIGIL_REMOTE_URL             http://<PC ZeroTier IP>:<port> of the PC's token-checking Vigil proxy.
 #                                Set: instead of the in-cluster Vigil, deploy a relay with the same
 #                                Service/labels (manifests/vigil-remote.yaml) that adds the token
-#                                (Secret vigil-remote-token, hack/gitops/secrets.sh) and, with
-#                                DEPLOY_INGRESS=1, the /chroma route the PC's Vigil reads its corpus
-#                                through (manifests/ingress/chroma-route.yaml).
+#                                (Secret vigil-remote-token, hack/gitops/secrets.sh). The PC's
+#                                Vigil reads its corpus from a Chroma on the PC itself.
 #   ---- GPU node: scale-to-zero GPU Vigil (hack/gpu-node, archived) ----
 #   DEPLOY_KEDA=1                install KEDA (chart kedacore/keda@KEDA_CHART_VERSION, namespace keda,
 #                                values manifests/keda/values-mcp-eval.yaml)
@@ -718,10 +717,6 @@ if [ "$DEPLOY_INGRESS" = "1" ]; then
   # OpenCode clients outside the cluster reach Occludra at /llm/v1.
   if [ "$DEPLOY_SECURITY_GATEWAYS" = "1" ]; then
     kubectl apply -f manifests/ingress/llm-gateway.yaml
-    # The PC's Vigil reads the corpus through Traefik.
-    if [ -n "$VIGIL_REMOTE_URL" ]; then
-      kubectl apply -f manifests/ingress/chroma-route.yaml
-    fi
   fi
 fi
 

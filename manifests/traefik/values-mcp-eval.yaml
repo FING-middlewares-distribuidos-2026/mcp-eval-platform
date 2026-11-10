@@ -21,10 +21,10 @@ providers:
   kubernetesIngress:
     enabled: true
 
-# Fixed NodePorts (the values the Service first got): the GPU PC enters
-# Traefik through a node's ZeroTier address on websecure's NodePort
-# (hack/pc-services, manifests/ingress/chroma-route.yaml), so it must not
-# change when the Service is recreated.
+# Fixed NodePorts (the values the Service first got): when the ingress IP
+# does not answer (its ZeroTier gateway goes down), the UI and /llm/v1 are
+# still reachable through a node's ZeroTier address on websecure's NodePort,
+# so it must not change when the Service is recreated.
 ports:
   web:
     nodePort: 32479
