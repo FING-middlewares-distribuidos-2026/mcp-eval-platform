@@ -30,6 +30,16 @@ patches:
     patch: |-
       - op: remove
         path: /spec/template/spec/containers/0/livenessProbe
+  # Chroma's coordinator writes each MemberList's members. Flux creates the
+  # objects and then leaves them alone: applying git's empty spec over them
+  # failed ("spec: Invalid value: null") whenever Flux had come to own the
+  # members field, and that stopped every later sync (2026-11-10).
+  - target: {kind: MemberList, namespace: chroma}
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value:
+          kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
   # The corpus is loaded (whole texts complete; sentences partly). Loading
   # more hits 429s while compaction is off (CHROMA_COMPACTION_REPLICAS=0).
   - target: {kind: Job, name: vigil-corpus-loader, namespace: chroma}

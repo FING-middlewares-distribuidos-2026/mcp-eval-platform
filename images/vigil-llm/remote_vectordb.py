@@ -53,17 +53,17 @@ endpoint and auto-update cannot write scan traffic into the shared corpus.
 Selected in server.conf by setting [vectordb] chroma_url; without it Vigil
 keeps upstream's local VectorDB.
 
-Auth: chroma_url points at chroma-gateway (manifests/chroma/gateway.yaml),
-which wants a bearer token. The token comes from the environment variable
-named by [vectordb] token_env (default CHROMA_TOKEN, filled from a Secret),
-never from server.conf, and never appears in errors or logs.
+Auth: in the cluster chroma_url points at chroma-gateway
+(manifests/chroma/gateway.yaml), which wants a bearer token. The token comes
+from the environment variable named by [vectordb] token_env (default
+CHROMA_TOKEN, filled from a Secret), never from server.conf, and never
+appears in errors or logs. With that variable empty no token is sent: the
+Vigil on the GPU PC (hack/pc-services) reads a Chroma of its own, on a
+network only the two of them share.
 
-TLS (a Vigil outside the cluster, hack/pc-services): chroma_url may be
-https through Traefik (manifests/ingress/chroma-route.yaml). [vectordb]
-ca_file trusts the ingress' self-signed certificate, and tls_server_name
-checks the certificate against that name while connecting elsewhere, so
-the PC can enter through a node's ZeroTier address (Traefik's NodePort) and
-still verify the certificate issued for the ingress IP.
+TLS: chroma_url may be https. [vectordb] ca_file trusts a self-signed
+certificate, and tls_server_name checks the certificate against that name
+while connecting elsewhere (an ingress entered through a node's address).
 
 Stdlib HTTP only (urllib), like the corpus loader.
 """
