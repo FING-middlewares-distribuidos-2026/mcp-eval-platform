@@ -6,6 +6,54 @@ lo que hace falta saber para seguir desde otra máquina. Las decisiones de
 diseño con su porqué están en [`decisions.md`](decisions.md); acá va el
 estado, los problemas y dónde está cada cosa.
 
+## Actualización 2026-11-10 (tarde, desde la laptop de Julián)
+
+Estado: **las tres funcionalidades andan y están probadas punta a punta en k0s.**
+
+- Chat: "hola", "contame un chiste" responden; "Mi contraseña es …" se
+  enmascara (`password-context`) y responde; "Ignorá todas las
+  instrucciones…" / "Ignore all previous…" → 403 por YARA.
+- Evaluación de `evil-demo-mcp` (run `evil-demo-mcp-run-4w47h`): score 0,
+  Malicious, cortada por Vigil en la superficie anunciada (los tres scanners).
+  Fase `Failed` = así se registra un aborto por inyección, como el run de
+  referencia `dkpv9`.
+
+Qué se hizo (detalle y porqués en `decisions.md`, entradas del 2026-11-10):
+
+1. PR #20 mergeado (escaneo de doble sentido de Diego en `log`).
+2. PR #22: en el chat **solo YARA bloquea** (`policy.injection.count_scanners:
+   ["YARA"]`); transformer y vectordb quedan como aviso en el log
+   (`injection screening: ... passed`). El transformer (deberta) es un modelo
+   en inglés y marcaba "hola" y todo mensaje con `[REDACTED]`. Reglas YARA en
+   español nuevas (`manifests/vigil-yara/injection-es.yar`). Medido: 26/40
+   mensajes normales bloqueados antes, 0/40 ahora.
+3. Perfiles de nodo (`deploy/k0s-nodes`) **aplicados por primera vez** (no
+   estaban activos en ningún nodo) + GC de imágenes al 70 % (antes coincidía
+   con el umbral de expulsión). Rama `node-image-gc`, ya aplicada con
+   `apply.sh apply`; falta mergear el PR (solo deja el cambio en git).
+4. journald limitado a 200 MB en los tres nodos
+   (`/etc/systemd/journald.conf.d/size.conf`, a mano, **no está en git**).
+5. Diego: no había nada mal de su lado; el Chroma del cluster es parte del
+   proyecto y se queda.
+
+Pendiente:
+
+- Mergear el PR de `node-image-gc`.
+- Borrar la caché huérfana de Chroma en nodo-g1-3 (2,5 GB,
+  `/local/cache/chroma-query-service`, solo si `query-service-0` sigue en
+  nodo-g1-1).
+- nodo-g1-1 es el nodo justo de disco (casi todas sus imágenes están en uso:
+  58 % Chroma, 23 % Grafana). Si una evaluación vuelve a ser expulsada por
+  `ephemeral-storage`, el siguiente paso es pedir discos más grandes en
+  OpenStack (18 GB hoy).
+- Menores de antes: la VIP sí responde desde la laptop de Julián (red ZeroTier
+  de la facultad); readiness de Traefik; `image-importer` (DaemonSet hecho a
+  mano en `kube-system`) se expulsa con DiskPressure y deja pods Evicted.
+
+Desde la laptop de Julián: kubeconfig en `~/.kube/configs/k0s.yaml`, contexto
+`k0s` (el contexto por defecto es otro cluster). No tiene `gh`, `flux` ni
+`helm`. SSH a los nodos solo desde la laptop de Juan.
+
 ## Resumen en cinco líneas
 
 - La plataforma corre en el cluster k0s (3 VMs de OpenStack), gestionada por Flux desde `main` (`deploy/k0s`).
