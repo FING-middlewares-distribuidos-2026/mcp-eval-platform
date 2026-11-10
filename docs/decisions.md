@@ -459,3 +459,18 @@ Decisions made before this log existed are not back-filled here.
   a teammate's feature).
 - **Who decided:** Juan, by merging this change (proposed by Claude).
   `DEMO.md` sets `block` by hand for its demo and is not affected.
+
+### 2026-11-10 — `policy.injection` refuses only when two Vigil scanners agree
+- **Decision:** new field `injection.min_scanners` (default 1, the old
+  rule); the shipped policy sets 2. A text that only one scanner flags is a
+  warning: one log line naming the scanner and
+  `occludra_injection_scans_total{outcome="warning"}`; the traffic passes.
+  Same rule for the turn sent and the model's answer.
+- **Reason:** measured on the PC's Vigil, any single scanner refused 12 of
+  30 normal messages ("hola", "What is 2+2?"; the transformer also flags
+  every sentence with `[REDACTED]`), which made the chat and the masking
+  demo unusable. Two scanners: 2 of 30 normal messages, 7 of 10 injections
+  (was 9 of 10). Same idea as the evaluator's rule (1A).
+- **Alternatives:** keep any-scanner; drop the transformer from this policy.
+- **Who decided:** Juan (two detectors); the field and its default are
+  Claude's.

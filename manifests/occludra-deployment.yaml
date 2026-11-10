@@ -155,6 +155,11 @@ data:
       clients: ["ui-chat", "external"]
       scan_requests: true
       scan_responses: true
+      # Refuse only when two different Vigil scanners agree (transformer,
+      # YARA, vector similarity). The transformer alone flags "hola" and any
+      # sentence that mentions a password; one scanner is logged and counted
+      # (occludra_injection_scans_total{outcome="warning"}) and passes.
+      min_scanners: 2
       # Vigil down or erroring: refuse (block) rather than pass unscreened.
       on_vigil_error: block
     logging:
