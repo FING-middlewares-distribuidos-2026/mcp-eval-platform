@@ -459,3 +459,18 @@ Decisions made before this log existed are not back-filled here.
   a teammate's feature).
 - **Who decided:** Juan, by merging this change (proposed by Claude).
   `DEMO.md` sets `block` by hand for its demo and is not affected.
+
+### 2026-11-10 — Image GC starts before disk eviction, not at the same point
+- **Decision:** both k0s worker profiles set `imageGCHighThresholdPercent: 70`
+  and `imageGCLowThresholdPercent: 60`.
+- **Reason:** the kubelet's defaults (GC at 85 % used) coincide with
+  `imagefs.available: 15 %`, so unused images were only removed while pods
+  were being evicted. Each merge leaves one more `sha-*` of every image of
+  ours on the workers (~1.4 GiB unused on nodo-g1-3 on 2026-11-10), and
+  evaluations failed Pending or evicted while pulling theirs.
+- **Also found:** on 2026-11-10 no node ran its profile (all three kubelets
+  had k0s defaults: memory eviction at 100 MiB, no reserves); `apply.sh
+  apply` from the laptop applies both changes.
+- **Alternatives:** removing the cluster's distributed Chroma (frees ~1.5 GiB
+  of images per node, but it is part of the project and Diego's demo).
+- **Who decided:** Claude (proposal); applying it is Juan's (SSH from the laptop).

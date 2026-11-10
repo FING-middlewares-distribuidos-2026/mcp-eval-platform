@@ -20,6 +20,14 @@
     evictionSoft: {memory.available: 500Mi}
     evictionSoftGracePeriod: {memory.available: 1m}
     evictionMaxPodGracePeriod: 30
+    # Images: the kubelet's default GC starts at 85 % disk used, the same
+    # point where imagefs.available 15 % evicts pods, so unused images (every
+    # merge leaves the previous sha-* of each of our images behind) were only
+    # deleted while pods were already being evicted (18 GiB disks, ~3 GiB
+    # free, 2026-11-10). Start at 70 % and delete down to 60 %; only images no
+    # container uses are removed.
+    imageGCHighThresholdPercent: 70
+    imageGCLowThresholdPercent: 60
     # Hard: under 250 MiB free, evict now. The disk signals keep the kubelet
     # defaults (setting evictionHard replaces the whole map).
     evictionHard:
@@ -40,6 +48,8 @@
     evictionSoft: {memory.available: 30%}
     evictionSoftGracePeriod: {memory.available: 30s}
     evictionMaxPodGracePeriod: 30
+    imageGCHighThresholdPercent: 70
+    imageGCLowThresholdPercent: 60
     evictionHard:
       memory.available: 25%
       nodefs.available: 10%
