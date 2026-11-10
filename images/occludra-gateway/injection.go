@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -39,6 +40,39 @@ type InjectionPolicy struct {
 	// OnVigilError: "block" (default) refuses the request when Vigil cannot
 	// answer; "allow" lets it through unscreened.
 	OnVigilError string `yaml:"on_vigil_error"`
+	// MinScanners is how many different Vigil scanners must flag a text to
+	// refuse it (default 1: any scanner). Fewer is a warning: logged and
+	// counted, the traffic passes.
+	MinScanners int `yaml:"min_scanners"`
+	// CountScanners limits which scanners count toward MinScanners, by
+	// case-insensitive prefix of the name Vigil reports ("YARA" matches
+	// "YARA signature(s)"). Empty: every scanner counts. The others are
+	// still reported, as warnings.
+	CountScanners []string `yaml:"count_scanners"`
+}
+
+// counted returns the scanners that count toward MinScanners.
+func (p InjectionPolicy) counted(scanners []string) []string {
+	if len(p.CountScanners) == 0 {
+		return scanners
+	}
+	var out []string
+	for _, s := range scanners {
+		for _, want := range p.CountScanners {
+			if w := strings.TrimSpace(want); w != "" && len(s) >= len(w) && strings.EqualFold(s[:len(w)], w) {
+				out = append(out, s)
+				break
+			}
+		}
+	}
+	return out
+}
+
+func (p InjectionPolicy) minScanners() int {
+	if p.MinScanners < 1 {
+		return 1
+	}
+	return p.MinScanners
 }
 
 func (p InjectionPolicy) screens(client string) bool {
@@ -115,9 +149,13 @@ func (v *vigilClient) scan(ctx context.Context, text string) ([]string, error) {
 		return nil, errors.New("vigil answer is not JSON")
 	}
 	var scanners []string
+	seen := map[string]bool{}
 	for _, m := range verdict.Messages {
 		if rest, ok := strings.CutPrefix(m, vigilHit); ok {
-			scanners = append(scanners, strings.TrimSpace(rest))
+			if name := strings.TrimSpace(rest); !seen[name] {
+				seen[name] = true
+				scanners = append(scanners, name)
+			}
 		}
 	}
 	return scanners, nil
@@ -271,6 +309,12 @@ func (g *gateway) screen(ctx context.Context, p *Policy, direction, text string)
 	}
 	if len(scanners) == 0 {
 		injectionScans.WithLabelValues(direction, "clean").Inc()
+		return nil
+	}
+	if n := len(p.Injection.counted(scanners)); n < p.Injection.minScanners() {
+		injectionScans.WithLabelValues(direction, "warning").Inc()
+		log.Printf("injection screening: %s flagged by %s (%d deciding scanner(s), %d needed); passed",
+			direction, strings.Join(scanners, ", "), n, p.Injection.minScanners())
 		return nil
 	}
 	injectionScans.WithLabelValues(direction, "injection").Inc()

@@ -155,6 +155,15 @@ data:
       clients: ["ui-chat", "external"]
       scan_requests: true
       scan_responses: true
+      # Only YARA (our rules, manifests/vigil-yara, English and Spanish)
+      # refuses. The transformer is an English model that flags ordinary
+      # Spanish requests ("contame un chiste") and anything with [REDACTED];
+      # the vector corpus matches any talk about passwords (password-game
+      # attacks). Measured 2026-11-10 on 40 normal chat messages: any
+      # scanner refused 26, two scanners 7, YARA 0. Their hits are logged
+      # and counted (occludra_injection_scans_total{outcome="warning"}).
+      min_scanners: 1
+      count_scanners: ["YARA"]
       # Vigil down or erroring: refuse (block) rather than pass unscreened.
       on_vigil_error: block
     logging:
