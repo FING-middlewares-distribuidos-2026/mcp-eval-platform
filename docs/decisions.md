@@ -457,6 +457,5 @@ Decisions made before this log existed are not back-filled here.
 - **Alternatives:** leave `block` (chat unusable); turn the scan off
   (loses the record); change the scan to skip system messages (a change to
   a teammate's feature).
-- **Who decided:** Claude, while Juan was away and had asked for a working
-  platform; Juan to confirm or revert (one line). `DEMO.md` sets `block` by
-  hand for its demo and is not affected.
+- **Who decided:** Juan, by merging this change (proposed by Claude).
+  `DEMO.md` sets `block` by hand for its demo and is not affected.
