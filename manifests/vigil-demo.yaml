@@ -1,0 +1,139 @@
+# vigil-demo — scanner CPU autocontenido (demo). La imagen es la del CI (rama m3 del
+# teammate: embedder e5 + vector client contra el Chroma distribuido).
+# Aplicar con el token writer del secret chroma-auth sustituido en __READER_TOKEN__:
+#   W=$(kubectl -n chroma get secret chroma-auth -o jsonpath="{.data.writer-token}" | base64 -d) &
+#     sed "s|__READER_TOKEN__|$W|" manifests/vigil-demo.yaml | kubectl apply -f -
+# Borrar: kubectl -n security-gateways delete deploy/vigil-demo svc/vigil-demo-service secret/vigil-demo-chroma cm/vigil-demo-conf
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vigil-demo-chroma
+  namespace: security-gateways
+  labels: {app.kubernetes.io/name: vigil-llm, demo: "true"}
+type: Opaque
+stringData:
+  reader-token: "__READER_TOKEN__"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vigil-demo-conf
+  namespace: security-gateways
+  labels: {app.kubernetes.io/name: vigil-llm, demo: "true"}
+data:
+  server.conf: |
+    [main]
+    use_cache = true
+    cache_max = 500
+    [embedding]
+    model = intfloat/multilingual-e5-small
+    [vectordb]
+    chroma_url = http://chroma-gateway.chroma.svc.cluster.local:8080
+    token_env = CHROMA_TOKEN
+    tenant = default_tenant
+    database = default_database
+    collections = vigil_e5s_v3_whole
+    sentence_collections = vigil_e5s_v3_sentence
+    benign_collections = vigil_e5s_v3_benign
+    timeout_s = 5
+    n_results = 5
+    collection = vigil-local
+    db_dir = /tmp/vigil-vdb
+    [auto_update]
+    enabled = false
+    threshold = 3
+    [scanners]
+    input_scanners = transformer,yara,vectordb
+    output_scanners = similarity,sentiment
+    [scanner:yara]
+    rules_dir = /app/yara-rules
+    [scanner:vectordb]
+    threshold = 2.0
+    [scanner:transformer]
+    model = laiyer/deberta-v3-base-prompt-injection
+    threshold = 0.98
+    [scanner:similarity]
+    threshold = 0.4
+    [scanner:sentiment]
+    threshold = 0.7
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vigil-demo
+  namespace: security-gateways
+  labels: {app.kubernetes.io/name: vigil-llm, demo: "true"}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: vigil-llm, demo: "true"}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: vigil-llm, demo: "true"}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10004
+        runAsGroup: 10004
+        fsGroup: 10004
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: vigil
+          image: docker.io/jjhonson/vigil-llm:sha-1276e3f
+          imagePullPolicy: IfNotPresent
+          ports: [{name: http, containerPort: 5000}]
+          env:
+            - name: HOME
+              value: /tmp
+            - name: CHROMA_TOKEN
+              valueFrom:
+                secretKeyRef: {name: vigil-demo-chroma, key: reader-token}
+          volumeMounts:
+            - {name: config, mountPath: /app/conf, readOnly: true}
+            - {name: yara, mountPath: /app/yara-rules, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            - {name: logs, mountPath: /app/logs}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10004
+            runAsGroup: 10004
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+            seccompProfile: {type: RuntimeDefault}
+          resources:
+            requests: {cpu: 250m, memory: 1500Mi}
+            limits: {cpu: "2", memory: 3000Mi}
+          startupProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 5
+            failureThreshold: 90
+          livenessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 10
+            failureThreshold: 2
+      volumes:
+        - name: config
+          configMap: {name: vigil-demo-conf}
+        - name: yara
+          configMap: {name: vigil-yara-rules}
+        - name: tmp
+          emptyDir: {sizeLimit: 2Gi}
+        - name: logs
+          emptyDir: {sizeLimit: 256Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vigil-demo-service
+  namespace: security-gateways
+  labels: {app.kubernetes.io/name: vigil-llm, demo: "true"}
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: vigil-llm, demo: "true"}
+  ports: [{name: http, port: 5000, targetPort: http}]

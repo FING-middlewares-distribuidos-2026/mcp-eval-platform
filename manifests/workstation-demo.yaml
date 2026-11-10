@@ -1,0 +1,44 @@
+# workstation-demo — la "laptop del programador" como pod (demo only).
+# kubectl -n security-gateways delete pod opencode-workstation-demo
+# kubectl -n security-gateways delete networkpolicy workstation-demo-egress
+apiVersion: v1
+kind: Pod
+metadata:
+  name: opencode-workstation-demo
+  namespace: security-gateways
+  labels: {app.kubernetes.io/name: workstation-demo, demo: "true"}
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  containers:
+    - name: workstation
+      image: ttl.sh/midd-workstation:2h
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: OCCLUDRA_BASE_URL
+          value: http://occludra-service.security-gateways.svc.cluster.local:8080/v1
+        - name: VIGIL_URL
+          value: http://vigil-demo-service.security-gateways.svc.cluster.local:5000
+        - name: OPENCODE_API_KEY
+          value: egress-via-occludra
+      command: ["sleep", "3600"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: workstation-demo-egress
+  namespace: security-gateways
+  labels: {demo: "true"}
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: workstation-demo}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/name: occludra}
+      ports: [{protocol: TCP, port: 8080}]
+    - to:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/name: vigil-llm}
+      ports: [{protocol: TCP, port: 5000}]
