@@ -12,7 +12,7 @@ spec:
   automountServiceAccountToken: false
   containers:
     - name: workstation
-      image: ttl.sh/midd-workstation:2h
+      image: ttl.sh/midd-workstation:24h
       imagePullPolicy: IfNotPresent
       env:
         - name: OCCLUDRA_BASE_URL
