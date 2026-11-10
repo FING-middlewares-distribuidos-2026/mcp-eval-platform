@@ -423,3 +423,21 @@ Decisions made before this log existed are not back-filled here.
   for both token checks, entering Traefik by NodePort over ZeroTier with
   the certificate pinned to the ingress IP, since the university gateway
   that routes 10.66.51.11 goes down).
+
+### 2026-11-10 — Vigil's corpus moves to the PC; Chroma requests what it uses
+- **Decision:** the PC's Vigil reads its corpus from a single-node Chroma
+  in the same compose project (`hack/pc-services`), loaded from the corpus
+  image the cluster uses. The `/chroma` Traefik route and the local copy of
+  the reader token are removed. The cluster's distributed Chroma stays, with
+  memory requests lowered to what was measured plus margin (2.7 GiB → 1.4
+  GiB; limits unchanged), and Flux no longer applies over its MemberLists.
+- **Reason:** with nodo-g1-1 down, Chroma's query path did not fit on the
+  other worker (requests 99 %, real use 55 %), every scan answered 500 and
+  Occludra blocked the chat, `/llm/v1` and the evaluations. A scan now
+  depends on the PC and the relay only.
+- **Alternatives:** keep reading the cluster's Chroma and only lower the
+  requests (still six pods and the ZeroTier path per scan); retire the
+  cluster's Chroma altogether (open: the demo runbook still uses it).
+- **Who decided:** Juan (both moves); Claude (compose layout, an internal
+  Docker network instead of a token, the request values, removing the
+  unused route, `ssa: IfNotPresent` on the MemberLists).

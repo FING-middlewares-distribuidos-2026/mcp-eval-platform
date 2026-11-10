@@ -70,7 +70,7 @@ sysdb:
       memory: '512Mi'
     requests:
       cpu: '50m'
-      memory: '128Mi'
+      memory: '64Mi'
 
 # --------------------------------------------------- SysDB migration (Job)
 # Alembic migrations for the coordinator's Postgres catalog. Job name embeds
@@ -100,7 +100,7 @@ rustSysdbService:
       memory: '384Mi'
     requests:
       cpu: '50m'
-      memory: '128Mi'
+      memory: '64Mi'
 
 # ------------------------------------------------- Frontend (REST gateway)
 # The client entrypoint: port 8000, API v2 (POST /api/v2/...). Vigil's
@@ -122,7 +122,7 @@ rustFrontendService:
       memory: '1Gi'
     requests:
       cpu: '50m'
-      memory: '256Mi'
+      memory: '96Mi'
 
 # ------------------------------------------------------------ Log Service
 rustLogService:
@@ -140,7 +140,7 @@ rustLogService:
       memory: '768Mi'
     requests:
       cpu: '50m'
-      memory: '256Mi'
+      memory: '96Mi'
 
 # ------------------------------------------------------------- Query nodes
 # Stateless search replicas; scale replicaCount with read traffic.
@@ -163,7 +163,7 @@ queryService:
       memory: '1Gi'
     requests:
       cpu: '50m'
-      memory: '384Mi'
+      memory: '256Mi'
 
 # --------------------------------------------------------------- Compactors
 compactionService:
@@ -205,7 +205,7 @@ workQueueService:
       memory: '512Mi'
     requests:
       cpu: '50m'
-      memory: '128Mi'
+      memory: '48Mi'
 
 fnConsumer:
   image:
@@ -221,7 +221,7 @@ fnConsumer:
       memory: '768Mi'
     requests:
       cpu: '50m'
-      memory: '192Mi'
+      memory: '64Mi'
 
 # --------------------------------------------------------- Garbage collector
 garbageCollector:
@@ -240,7 +240,7 @@ garbageCollector:
       memory: '1Gi'
     requests:
       cpu: '50m'
-      memory: '256Mi'
+      memory: '64Mi'
 
 # --------------------------------------------------------------------------
 # Explicitly disabled, hosted-only or not needed here:

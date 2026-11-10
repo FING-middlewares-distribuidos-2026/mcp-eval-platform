@@ -239,7 +239,7 @@ spec:
         resources:
           requests:
             cpu: 50m
-            memory: 640Mi
+            memory: 448Mi
           limits:
             cpu: '1'
             memory: 1Gi
@@ -355,7 +355,7 @@ spec:
         resources:
           requests:
             cpu: 50m
-            memory: 256Mi
+            memory: 96Mi
           limits:
             cpu: '1'
             memory: 1Gi
@@ -2147,7 +2147,7 @@ spec:
             memory: 768Mi
           requests:
             cpu: 50m
-            memory: 192Mi
+            memory: 64Mi
         volumeMounts:
         - mountPath: /config/
           name: fn-consumer-config
@@ -2206,7 +2206,7 @@ spec:
             memory: 1Gi
           requests:
             cpu: 50m
-            memory: 256Mi
+            memory: 96Mi
         volumeMounts:
         - mountPath: /config/
           name: rust-frontend-service-config
@@ -2253,7 +2253,7 @@ spec:
             memory: 384Mi
           requests:
             cpu: 50m
-            memory: 128Mi
+            memory: 64Mi
         volumeMounts:
         - mountPath: /config/
           name: rust-sysdb-service-config
@@ -2311,7 +2311,7 @@ spec:
             memory: 512Mi
           requests:
             cpu: 50m
-            memory: 128Mi
+            memory: 64Mi
       serviceAccountName: sysdb-serviceaccount
 ---
 apiVersion: apps/v1
@@ -2426,7 +2426,7 @@ spec:
             memory: 1Gi
           requests:
             cpu: 50m
-            memory: 256Mi
+            memory: 64Mi
         volumeMounts:
         - mountPath: /config/
           name: garbage-collector-config
@@ -2521,7 +2521,7 @@ spec:
             memory: 1Gi
           requests:
             cpu: 50m
-            memory: 384Mi
+            memory: 256Mi
         volumeMounts:
         - mountPath: /config/
           name: query-service-config
@@ -2586,7 +2586,7 @@ spec:
             memory: 768Mi
           requests:
             cpu: 50m
-            memory: 256Mi
+            memory: 96Mi
         volumeMounts:
         - mountPath: /config/
           name: rust-log-service-config
@@ -2649,7 +2649,7 @@ spec:
             memory: 512Mi
           requests:
             cpu: 50m
-            memory: 128Mi
+            memory: 48Mi
         volumeMounts:
         - mountPath: /config/
           name: work-queue-service-config
@@ -3105,60 +3105,3 @@ spec:
       - name: script
         configMap:
           name: vigil-corpus-loader
----
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: chroma-prefix
-  namespace: chroma
-spec:
-  stripPrefix:
-    prefixes:
-    - /chroma
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: chroma
-  namespace: chroma
-  annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.tls: 'true'
-    traefik.ingress.kubernetes.io/router.middlewares: chroma-chroma-prefix@kubernetescrd
-spec:
-  ingressClassName: traefik
-  rules:
-  - http:
-      paths:
-      - path: /chroma
-        pathType: Prefix
-        backend:
-          service:
-            name: chroma-gateway
-            port:
-              number: 8080
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: chroma-gateway-from-traefik
-  namespace: chroma
-  labels:
-    app.kubernetes.io/part-of: chroma-distributed
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: chroma-gateway
-  policyTypes:
-  - Ingress
-  ingress:
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: traefik
-      podSelector:
-        matchLabels:
-          app.kubernetes.io/name: traefik
-    ports:
-    - protocol: TCP
-      port: 8080
