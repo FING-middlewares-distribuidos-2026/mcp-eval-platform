@@ -26,8 +26,9 @@ LLM_REASONING_BUDGET="${LLM_REASONING_BUDGET:-0}"
 VIGIL_IMAGE="${VIGIL_IMAGE:-}"
 # The cluster's Chroma, through Traefik's websecure NodePort on a node's
 # ZeroTier address (the ingress IP itself is routed by the university's
-# ZeroTier gateway, which goes down). The certificate is checked against
+# ZeroTier gateway, which goes down). Not the control-plane node (.228): it
+# is the one whose disk stalls. The certificate is checked against
 # the ingress IP it was issued for.
-CHROMA_URL="${CHROMA_URL:-https://10.147.17.228:31365/chroma}"
+CHROMA_URL="${CHROMA_URL:-https://10.147.17.98:31365/chroma}"
 CHROMA_TLS_NAME="${CHROMA_TLS_NAME:-10.66.51.11}"
 INGRESS_CA="${INGRESS_CA:-$HOME/.config/mcp-eval/ingress-cert.pem}"

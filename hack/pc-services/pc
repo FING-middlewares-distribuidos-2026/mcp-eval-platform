@@ -139,8 +139,14 @@ up() {
     prepare_vigil
     log "Vigil image $VIGIL_IMAGE, Chroma $CHROMA_URL (certificate for $CHROMA_TLS_NAME)"
   fi
+  # Vigil reads server.conf only at start, and compose does not notice a
+  # changed mounted file: recreate it so `pc up` always applies the conf.
+  local vigil_svcs="" other=""
+  for s in $svcs; do case "$s" in vigil|vigil-auth) vigil_svcs+=" $s" ;; *) other+=" $s" ;; esac; done
   # shellcheck disable=SC2086
-  compose up -d $svcs
+  [ -z "$other" ] || compose up -d $other
+  # shellcheck disable=SC2086
+  [ -z "$vigil_svcs" ] || compose up -d --force-recreate $vigil_svcs
   local containers=()
   [[ " $svcs " == *" llm "* ]] && containers+=(mcp-local-llm)
   [[ " $svcs " == *" vigil "* ]] && containers+=(mcp-pc-vigil-1 mcp-pc-vigil-auth-1)
