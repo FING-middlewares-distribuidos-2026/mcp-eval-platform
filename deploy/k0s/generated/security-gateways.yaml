@@ -144,16 +144,8 @@ spec:
           value: ''
         - name: OCCLUDRA_FALLBACK_API_KEY
           value: ''
-        - name: VIGIL_SCAN_IN
-          value: '0'
-        - name: VIGIL_SCAN_OUT
-          value: '0'
-        - name: VIGIL_IN_ACTION
-          value: log
         - name: VIGIL_URL
           value: http://vigil-service.security-gateways.svc.cluster.local:5000/analyze/prompt
-        - name: VIGIL_TIMEOUT_MS
-          value: '3000'
         - name: OCCLUDRA_UPSTREAM_API_KEY
           valueFrom:
             secretKeyRef:
@@ -174,6 +166,14 @@ spec:
               optional: true
         - name: HOME
           value: /tmp
+        - name: VIGIL_SCAN_IN
+          value: '1'
+        - name: VIGIL_SCAN_OUT
+          value: '1'
+        - name: VIGIL_IN_ACTION
+          value: block
+        - name: VIGIL_TIMEOUT_MS
+          value: '90000'
         volumeMounts:
         - name: policy
           mountPath: /conf

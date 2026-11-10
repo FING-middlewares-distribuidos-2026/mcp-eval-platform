@@ -87,6 +87,8 @@
 #   VIGIL_URL                    Occludra's Vigil /analyze/prompt endpoint (default: in-cluster
 #                                vigil-service; keep the /analyze/prompt suffix — the response
 #                                endpoint is derived by swapping it for /analyze/response)
+#   VIGIL_TIMEOUT_MS             how long Occludra waits for each of those scans (default 3000;
+#                                a Vigil on CPU behind VIGIL_REMOTE_URL needs far more)
 #   ---- workstation exposure (opt-in) ----
 #   WORKSTATION_NODEPORT=1       publish Occludra (30080) and Vigil (30500) as NodePorts plus an
 #                                ingress NetworkPolicy, so docker containers on the programmer's
@@ -556,7 +558,7 @@ EOF
   # manifest defaults keep scanning OFF; `set env` only fires when at least
   # one VIGIL_* knob is explicit, so existing deploys are unchanged.
   vigil_env=()
-  for knob in VIGIL_SCAN_IN VIGIL_SCAN_OUT VIGIL_IN_ACTION VIGIL_URL; do
+  for knob in VIGIL_SCAN_IN VIGIL_SCAN_OUT VIGIL_IN_ACTION VIGIL_URL VIGIL_TIMEOUT_MS; do
     if [ -n "${!knob:-}" ]; then vigil_env+=("$knob=${!knob}"); fi
   done
   if [ "${#vigil_env[@]}" -gt 0 ]; then
