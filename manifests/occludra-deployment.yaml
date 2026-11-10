@@ -291,6 +291,35 @@ spec:
             - name: OCCLUDRA_FALLBACK_API_KEY
               # Falls back to ANTHROPIC_API_KEY above when empty.
               value: ""
+            # ---- two-sided Vigil prompt-injection scanning (OFF by default;
+            # deploy.sh passes these through when set, so existing deploys
+            # are unchanged). Scans ALL gateway traffic, unlike the
+            # policy.injection screening of OCCLUDRA_VIGIL_URL above, which
+            # only covers the clients named in the policy ----
+            # VIGIL_SCAN_IN=1: scan the concatenated message text of
+            # completion requests against Vigil /analyze/prompt BEFORE
+            # proxying. VIGIL_IN_ACTION=block (default "log") answers 403
+            # vigil_block instead of proxying.
+            # VIGIL_SCAN_OUT=1: after a response completes, scan the
+            # assistant text (JSON body or accumulated SSE deltas) via
+            # /analyze/response — log + metric only; the response is never
+            # mutated or blocked.
+            # Vigil is fail-soft: timeout/unreachable/5xx → one classified
+            # log line + occludra_vigil_scans_total{verdict="error"} and the
+            # request passes through.
+            - name: VIGIL_SCAN_IN
+              value: "0"
+            - name: VIGIL_SCAN_OUT
+              value: "0"
+            - name: VIGIL_IN_ACTION
+              value: "log"
+            # In-cluster Vigil; keep the /analyze/prompt suffix (the response
+            # endpoint is derived by swapping it for /analyze/response, or
+            # set VIGIL_RESPONSE_URL explicitly).
+            - name: VIGIL_URL
+              value: "http://vigil-service.security-gateways.svc.cluster.local:5000/analyze/prompt"
+            - name: VIGIL_TIMEOUT_MS
+              value: "3000"
             # Upstream provider keys — injected into sanitized upstream calls.
             # UPSTREAM_API_KEY (written by deploy.sh for providers other than
             # Zen, e.g. NVIDIA) wins over the two provider-named keys below.
@@ -619,7 +648,11 @@ spec:
         - protocol: TCP
           port: 443
     # Occludra -> Vigil: prompt-injection screening of the UI chat and of
-    # external OpenCode clients (policy.injection).
+    # external OpenCode clients (policy.injection), and — with
+    # VIGIL_SCAN_IN/VIGIL_SCAN_OUT — the two-sided scanning of every
+    # request/response (/analyze/prompt, /analyze/response). A bare
+    # podSelector stays inside security-gateways; the matching ingress is
+    # already allowed by allow-service-ports-in-namespace above.
     - to:
         - podSelector:
             matchLabels:
