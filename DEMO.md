@@ -72,8 +72,9 @@ kubectl -n chroma port-forward svc/chroma-gateway 8000:8080 >/dev/null 2>&1 & sl
 curl -s -H "Authorization: Bearer $W" localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections | jq -c 'map({name,id})' && \
 curl -s -H "Authorization: Bearer $W" localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections | jq -r '.[] | "\(.name) \(.id)"' | while read n i; do echo -n "$n: "; curl -s -H "Authorization: Bearer $W" localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections/$i/count; echo; done
 
-# (2) disparar la RECARGA (vectores preexistentes, escritura completa por el clúster)
-kubectl -n chroma get job vigil-corpus-loader -o json | jq '.metadata.name="vigil-corpus-loader-demo" | .spec.template.spec.containers[0].env += [{"name":"FORCE_LOAD","value":"1"}] | del(.status,.spec.selector,.metadata.uid,.metadata.resourceVersion,.metadata.creationTimestamp,.metadata.generation,.metadata.managedFields)' | kubectl apply -f -
+# (2) disparar la RECARGA (vectores preexistentes, escritura completa por el clúster).
+#     El jq también reescribe los labels del template (el job-name viejo invalida el clon).
+kubectl -n chroma get job vigil-corpus-loader -o json | jq '.metadata.name="vigil-corpus-loader-demo" | .spec.suspend=false | .spec.template.spec.containers[0].env += [{"name":"FORCE_LOAD","value":"1"}] | .spec.template.metadata.labels |= (with_entries(select(.key | test("controller-uid") | not)) | .["batch.kubernetes.io/job-name"]="vigil-corpus-loader-demo" | .["job-name"]="vigil-corpus-loader-demo") | del(.status,.spec.selector,.metadata.uid,.metadata.resourceVersion,.metadata.creationTimestamp,.metadata.generation,.metadata.managedFields)' | kubectl apply -f -
 
 # (3) la carga en vivo
 kubectl -n chroma logs -f job/vigil-corpus-loader-demo
@@ -256,6 +257,21 @@ kubectl -n chroma logs deploy/chroma-gateway --tail -f   # el gateway ve pasar c
 (Opcional, si querés gráficos: `make observability` despliega el stack en el
 namespace `observability` — coordinar con el equipo, los workers están
 apretados de CPU.)
+
+## Hallazgos del lab (2026-11-09/10, verificados en vivo)
+
+- El upstream es la GPU PC (`gemma-4-12b-it` via llama.cpp) — sin Zen ni keys.
+- `VIGIL_TIMEOUT_MS=90000` en occludra: el primer scan en CPU demora (el screening
+  v2 del teammate usa el mismo valor por ese motivo).
+- El corpus quedó a medias (whole 41.000/41.164, sentence 101.250/163.965,
+  benign 0) — el Job loader está `Suspended`; la recarga (B2) además lo completa.
+- Con vectordb deshabilitado (`input_scanners = transformer,yara` en
+  `vigil-demo-conf`), YARA matchea la inyección canónica con las reglas propias
+  (`InstructionOverride`, `SystemPromptExtraction`) en ~11 s el primer scan.
+- El CLI de opencode (binario Bun) hace SIGTRAP en el kernel de los nodos del
+  lab — A1/A2 van por curl desde el workstation pod (mismo camino).
+- Los nodos del lab andan con disco casi lleno (evictions por ephemeral-storage):
+  coordinar limpieza antes de levantar scanners con ~2 GB de modelos.
 
 ## Si algo falla
 
