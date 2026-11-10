@@ -44,6 +44,28 @@ type InjectionPolicy struct {
 	// refuse it (default 1: any scanner). Fewer is a warning: logged and
 	// counted, the traffic passes.
 	MinScanners int `yaml:"min_scanners"`
+	// CountScanners limits which scanners count toward MinScanners, by
+	// case-insensitive prefix of the name Vigil reports ("YARA" matches
+	// "YARA signature(s)"). Empty: every scanner counts. The others are
+	// still reported, as warnings.
+	CountScanners []string `yaml:"count_scanners"`
+}
+
+// counted returns the scanners that count toward MinScanners.
+func (p InjectionPolicy) counted(scanners []string) []string {
+	if len(p.CountScanners) == 0 {
+		return scanners
+	}
+	var out []string
+	for _, s := range scanners {
+		for _, want := range p.CountScanners {
+			if w := strings.TrimSpace(want); w != "" && len(s) >= len(w) && strings.EqualFold(s[:len(w)], w) {
+				out = append(out, s)
+				break
+			}
+		}
+	}
+	return out
 }
 
 func (p InjectionPolicy) minScanners() int {
@@ -289,10 +311,10 @@ func (g *gateway) screen(ctx context.Context, p *Policy, direction, text string)
 		injectionScans.WithLabelValues(direction, "clean").Inc()
 		return nil
 	}
-	if len(scanners) < p.Injection.minScanners() {
+	if n := len(p.Injection.counted(scanners)); n < p.Injection.minScanners() {
 		injectionScans.WithLabelValues(direction, "warning").Inc()
-		log.Printf("injection screening: %s flagged by %s only (%d of %d scanners needed); passed",
-			direction, strings.Join(scanners, ", "), len(scanners), p.Injection.minScanners())
+		log.Printf("injection screening: %s flagged by %s (%d deciding scanner(s), %d needed); passed",
+			direction, strings.Join(scanners, ", "), n, p.Injection.minScanners())
 		return nil
 	}
 	injectionScans.WithLabelValues(direction, "injection").Inc()
