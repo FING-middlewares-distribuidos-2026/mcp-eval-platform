@@ -743,6 +743,11 @@ if [ "$IN_CLUSTER_REGISTRY" = "1" ]; then
   echo "then push images with: IMG_REGISTRY=registry.registry.svc.cluster.local:5000 ./deploy.sh (from inside the cluster)"
 fi
 
+if [ "${DEPLOY_NETBIRD_PEER:-0}" = "1" ]; then
+  log "NetBird peer (client) — namespace netbird (requiere secret netbird-auth/setup-key)"
+  kubectl apply -f manifests/netbird-peer.yaml
+fi
+
 if [ "$DEPLOY_NETBIRD_CP" = "1" ]; then
   log "Deploying NetBird control plane (self-hosted, in-cluster)"
   if kubectl -n security-gateways get secret netbird-cp-secrets >/dev/null 2>&1; then
