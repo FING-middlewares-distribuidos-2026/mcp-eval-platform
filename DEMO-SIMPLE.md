@@ -21,7 +21,7 @@ kubectl -n security-gateways set env deploy/occludra VIGIL_IN_ACTION=block && ku
 ## 4 — prompt NORMAL (responde gemma en la GPU PC)
 
 ```bash
-curl -s -m 240 localhost:30080/v1/chat/completions -H 'Authorization: Bearer egress-via-occludra' -H 'content-type: application/json' -d '{"model":"gemma-4-12b-it","messages":[{"role":"user","content":"explicame en una linea que es un servidor MCP"}]}' | jq -r '.choices[0].message.content'
+curl -s -m 240 localhost:30080/v1/chat/completions -H 'Authorization: Bearer egress-via-occludra' -H 'content-type: application/json' -d '{"model":"gemma-4-12b-it","messages":[{"role":"user","content":"explain what an MCP server is, in one line"}]}' | jq -r '.choices[0].message.content'
 ```
 
 ## 5 — prompt INYECTADO (403, el modelo jamás lo ve)
