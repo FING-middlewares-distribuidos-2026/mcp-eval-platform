@@ -72,14 +72,20 @@ maybe_netbird() {
       log "netbird: binary missing; mesh no desplegado — usando port-forwards"
       return 0
     fi
-    log "netbird: joining mesh ${NETBIRD_MANAGEMENT_URL} (background, never blocks startup)"
-    # shellcheck disable=SC2086  # NETBIRD_EXTRA_ARGS is deliberately word-split
+    log "netbird: joining mesh ${NETBIRD_MANAGEMENT_URL} (daemon + up, never blocks startup)"
+    # netbird >=0.4x: `up` is a thin CLI over a unix-socket daemon — the
+    # daemon must be installed/started first (the official image does this
+    # in its own entrypoint).
     (
+      netbird service install >/dev/null 2>&1 || true
+      netbird service start  >/dev/null 2>&1 || true
+      sleep 5
       while true; do
+        # shellcheck disable=SC2086  # NETBIRD_EXTRA_ARGS is deliberately word-split
         netbird up --management-url "$NETBIRD_MANAGEMENT_URL" \
           --setup-key "$NETBIRD_SETUP_KEY" ${NETBIRD_EXTRA_ARGS:-} \
           >/dev/null 2>&1 || true
-        sleep 5
+        sleep 10
       done
     ) &
   else
