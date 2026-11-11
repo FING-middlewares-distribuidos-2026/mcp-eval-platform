@@ -1,9 +1,9 @@
 {
   "uid": "mcp-evaluation",
-  "title": "MCP evaluation platform",
+  "title": "Evaluaciones MCP: estado y seguridad",
   "schemaVersion": 39,
-  "version": 1,
-  "refresh": "30s",
+  "version": 3,
+  "refresh": "1m",
   "time": {
     "from": "now-1h",
     "to": "now"
@@ -14,14 +14,461 @@
   ],
   "panels": [
     {
-      "id": 1,
-      "title": "Retained evaluations by phase",
-      "type": "timeseries",
+      "id": 100,
+      "title": "Cómo leer este tablero",
+      "type": "text",
+      "options": {
+        "mode": "markdown",
+        "content": "**En curso** muestra las evaluaciones activas ahora. **Bloqueado por seguridad** indica que se detectó contenido malicioso y se interrumpió el análisis. **Error de ejecución** indica una evaluación que falló sin ese veredicto.\n\nLos resultados y sus contadores corresponden al **intervalo elegido arriba**. Un resultado anterior permanece en el historial aunque inicies otra evaluación."
+      },
       "gridPos": {
         "x": 0,
         "y": 0,
+        "w": 24,
+        "h": 4
+      }
+    },
+    {
+      "id": 110,
+      "title": "Ahora · evaluaciones y recepción de métricas",
+      "type": "row",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 14,
+      "title": "Evaluaciones en curso",
+      "description": "Cantidad actual de evaluaciones pendientes, preparando el repositorio o ejecutándose. Se obtiene del estado de Kubernetes; no es un conteo de inicios en el intervalo.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(max by (namespace, phase) (mcp_evaluation_runs{phase=~\"Pending|Cloning|Running|Evaluating\"}))",
+          "legendFormat": "{{job}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "decimals": 0,
+          "noValue": "Sin datos",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794F2"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Ninguna",
+                  "color": "#8e8e8e"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "id": 3,
+      "title": "Tiempo activo más antiguo",
+      "description": "Tiempo desde que comenzó la evaluación activa más antigua. Un tiempo creciente indica que sigue activa; no confirma progreso dentro de la fase. Cero significa que no hay evaluaciones activas.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (namespace) (mcp_evaluation_oldest_active_seconds)",
+          "legendFormat": "{{job}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "decimals": 0,
+          "noValue": "Sin datos",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794F2"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Ninguna activa",
+                  "color": "#8e8e8e"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 5,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "id": 4,
+      "title": "Recepción de métricas",
+      "description": "Todos responden: Prometheus puede leer todos sus destinos monitoreados. Hay servicios sin respuesta: al menos uno no responde a la recolección. No confirma que una consulta al modelo funcione de punta a punta. Consultá up por servicio en Explore → Prometheus para el detalle.",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "min(up)",
+          "legendFormat": "Servicios monitoreados",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "decimals": 0,
+          "noValue": "Sin datos",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#73BF69"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Hay servicios sin respuesta",
+                  "color": "#F2495C"
+                },
+                "1": {
+                  "text": "Todos responden",
+                  "color": "#73BF69"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 5,
         "w": 12,
+        "h": 4
+      }
+    },
+    {
+      "id": 111,
+      "title": "Resultados de seguridad · intervalo seleccionado",
+      "type": "row",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 15,
+      "title": "Bloqueadas por seguridad",
+      "description": "Cierres registrados por el evaluador en el intervalo elegido, contados desde los logs. No es el total histórico de Kubernetes ni cuenta fallos previos al arranque del evaluador. Cero significa que no hay cierres registrados de esta categoría en ese intervalo.",
+      "type": "stat",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({namespace=\"mcp-evals\", container=\"evaluator\"} |= \"evaluator finished\" | json | __error__=\"\" | msg=\"evaluator finished\" | phase=\"Failed\" | riskCategory=\"Malicious\" [$__range])) or vector(0)",
+          "legendFormat": "{{job}}",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "decimals": 0,
+          "noValue": "Sin datos",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B877D9"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0",
+                  "color": "#8e8e8e"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 8,
+        "h": 4
+      }
+    },
+    {
+      "id": 16,
+      "title": "Con error de ejecución",
+      "description": "Cierres registrados por el evaluador en el intervalo elegido, contados desde los logs. No es el total histórico de Kubernetes ni cuenta fallos previos al arranque del evaluador. Cero significa que no hay cierres registrados de esta categoría en ese intervalo.",
+      "type": "stat",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({namespace=\"mcp-evals\", container=\"evaluator\"} |= \"evaluator finished\" | json | __error__=\"\" | msg=\"evaluator finished\" | phase=\"Failed\" | riskCategory!=\"Malicious\" [$__range])) or vector(0)",
+          "legendFormat": "{{job}}",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "decimals": 0,
+          "noValue": "Sin datos",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#F2495C"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0",
+                  "color": "#8e8e8e"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 10,
+        "w": 8,
+        "h": 4
+      }
+    },
+    {
+      "id": 17,
+      "title": "Análisis completados",
+      "description": "Cierres registrados por el evaluador en el intervalo elegido, contados desde los logs. No es el total histórico de Kubernetes ni cuenta fallos previos al arranque del evaluador. Cero significa que no hay cierres registrados de esta categoría en ese intervalo. Un análisis completado puede tener un veredicto seguro, riesgoso o inconcluso; ver el registro de resultados.",
+      "type": "stat",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({namespace=\"mcp-evals\", container=\"evaluator\"} |= \"evaluator finished\" | json | __error__=\"\" | msg=\"evaluator finished\" | phase=\"Completed\" [$__range])) or vector(0)",
+          "legendFormat": "{{job}}",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "decimals": 0,
+          "noValue": "Sin datos",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#73BF69"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "0",
+                  "color": "#8e8e8e"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 10,
+        "w": 8,
+        "h": 4
+      }
+    },
+    {
+      "id": 2,
+      "title": "Resultados de evaluaciones · más recientes primero",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "description": "Una línea por cierre registrado del evaluador en el intervalo elegido. Bloqueado por seguridad = fase Failed con veredicto Malicious; Error de ejecución = Failed sin ese veredicto. No indica el estado de una evaluación todavía en curso. El registro puede estar incompleto si no se recolectaron logs.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{namespace=\"mcp-evals\", container=\"evaluator\"} |= \"evaluator finished\" | json | __error__=\"\" | msg=\"evaluator finished\" | line_format `{{.run}} | {{if and (eq .phase \"Failed\") (eq .riskCategory \"Malicious\")}}Bloqueado por seguridad{{else if eq .phase \"Failed\"}}Error de ejecución{{else}}Análisis completado{{end}} | {{if eq .riskCategory \"Malicious\"}}Malicioso{{else if eq .riskCategory \"Safe\"}}Seguro{{else if eq .riskCategory \"Caution\"}}Precaución{{else if eq .riskCategory \"Untrusted\"}}No confiable{{else}}Sin veredicto concluyente{{end}} | Puntaje: {{.finalScore}}/100`",
+          "queryType": "range",
+          "maxLines": 100
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 24,
         "h": 8
+      }
+    },
+    {
+      "id": 1,
+      "title": "Historial conservado · evaluaciones por fase",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 12,
+        "h": 7
       },
       "datasource": {
         "type": "prometheus",
@@ -31,326 +478,159 @@
         {
           "refId": "A",
           "expr": "sum by (phase) (max by (namespace, phase) (mcp_evaluation_runs))",
-          "legendFormat": "{{namespace}} {{phase}} {{server}} {{job}} {{route}} {{status}}"
+          "legendFormat": "{{phase}}"
         }
       ],
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {}
-    },
-    {
-      "id": 2,
-      "title": "Latest evaluation failed (1 = failed)",
-      "type": "stat",
-      "gridPos": {
-        "x": 12,
-        "y": 0,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "max by (namespace, server) (mcp_evaluation_last_run_failed)",
-          "legendFormat": "{{namespace}} {{phase}} {{server}} {{job}} {{route}} {{status}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {}
-    },
-    {
-      "id": 3,
-      "title": "Oldest active evaluation (seconds)",
-      "type": "timeseries",
-      "gridPos": {
-        "x": 0,
-        "y": 8,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "max by (namespace) (mcp_evaluation_oldest_active_seconds)",
-          "legendFormat": "{{namespace}} {{phase}} {{server}} {{job}} {{route}} {{status}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {}
-    },
-    {
-      "id": 4,
-      "title": "Telemetry target health",
-      "type": "stat",
-      "gridPos": {
-        "x": 12,
-        "y": 8,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "min by (job) (up)",
-          "legendFormat": "{{namespace}} {{phase}} {{server}} {{job}} {{route}} {{status}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {}
-    },
-    {
-      "id": 5,
-      "title": "Gateway requests per second",
-      "type": "timeseries",
-      "gridPos": {
-        "x": 0,
-        "y": 16,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (route, status) (rate(occludra_requests_total[5m]))",
-          "legendFormat": "{{namespace}} {{phase}} {{server}} {{job}} {{route}} {{status}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {}
-    },
-    {
-      "id": 6,
-      "title": "Gateway P95 duration including SSE (seconds)",
-      "type": "timeseries",
-      "gridPos": {
-        "x": 12,
-        "y": 16,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(occludra_request_duration_seconds_bucket[5m])))",
-          "legendFormat": "{{namespace}} {{phase}} {{server}} {{job}} {{route}} {{status}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {}
-    },
-    {
-      "id": 7,
-      "title": "DLP redactions per second",
-      "type": "timeseries",
-      "gridPos": {
-        "x": 0,
-        "y": 24,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (detector) (rate(occludra_redactions_total[5m]))",
-          "legendFormat": "{{namespace}} {{phase}} {{server}} {{job}} {{route}} {{status}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {}
-    },
-    {
-      "id": 8,
-      "title": "Policy blocks / upstream failovers per second",
-      "type": "timeseries",
-      "gridPos": {
-        "x": 12,
-        "y": 24,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(rate(occludra_blocked_requests_total[5m]))",
-          "legendFormat": "policy blocks"
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "Sin muestras en este intervalo",
+          "color": {
+            "mode": "palette-classic"
+          }
         },
-        {
-          "refId": "B",
-          "expr": "sum(rate(occludra_upstream_failovers_total[5m]))",
-          "legendFormat": "upstream failovers"
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pending"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "En espera"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8e8e8e"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cloning"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Preparando repositorio"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Running"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Iniciando análisis"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Evaluating"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Analizando"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Completed"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Completadas"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Failed"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Interrumpidas · bloqueo o error"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
         }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
       },
-      "options": {}
-    },
-    {
-      "id": 9,
-      "title": "Deployment desired replicas",
-      "type": "timeseries",
-      "gridPos": {
-        "x": 0,
-        "y": 32,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "kube_deployment_spec_replicas{namespace=~\"mcp-eval-system|security-gateways\"}",
-          "legendFormat": "{{namespace}} {{phase}} {{server}} {{job}} {{route}} {{status}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {}
-    },
-    {
-      "id": 10,
-      "title": "Deployment available replicas",
-      "type": "timeseries",
-      "gridPos": {
-        "x": 12,
-        "y": 32,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "kube_deployment_status_replicas_available{namespace=~\"mcp-eval-system|security-gateways\"}",
-          "legendFormat": "{{namespace}} {{phase}} {{server}} {{job}} {{route}} {{status}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {}
-    },
-    {
-      "id": 11,
-      "title": "Container restarts (15 minutes)",
-      "type": "timeseries",
-      "gridPos": {
-        "x": 0,
-        "y": 40,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "increase(kube_pod_container_status_restarts_total{namespace=~\"mcp-eval-system|security-gateways\"}[15m])",
-          "legendFormat": "{{namespace}} {{phase}} {{server}} {{job}} {{route}} {{status}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {}
-    },
-    {
-      "id": 12,
-      "title": "Controller reconciliation errors",
-      "type": "timeseries",
-      "gridPos": {
-        "x": 12,
-        "y": 40,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (controller) (rate(controller_runtime_reconcile_errors_total[5m]))",
-          "legendFormat": "{{namespace}} {{phase}} {{server}} {{job}} {{route}} {{status}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {}
+      "description": "Cantidad de recursos de evaluación conservados en Kubernetes en cada momento. Failed agrupa bloqueos de seguridad y errores; consultá los resultados de arriba para distinguirlos. No representa nuevas evaluaciones por segundo."
     },
     {
       "id": 13,
-      "title": "Evaluator execution duration (seconds)",
+      "title": "Duración media de ejecuciones finalizadas",
       "type": "timeseries",
       "gridPos": {
-        "x": 0,
-        "y": 48,
+        "x": 12,
+        "y": 22,
         "w": 12,
-        "h": 8
+        "h": 7
       },
       "datasource": {
         "type": "prometheus",
@@ -359,50 +639,576 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "mcp_evaluator_duration_seconds_sum / clamp_min(mcp_evaluator_duration_seconds_count, 1)",
-          "legendFormat": "{{namespace}} {{phase}} {{server}} {{job}} {{route}} {{status}}"
+          "expr": "sum by (outcome) (mcp_evaluator_duration_seconds_sum) / clamp_min(sum by (outcome) (mcp_evaluator_duration_seconds_count), 1)",
+          "legendFormat": "{{outcome}}"
         }
       ],
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "noValue": "Sin muestras en este intervalo",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "failed"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Interrumpidas · bloqueo o error"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "completed"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Completadas"
+              }
+            ]
+          }
+        ]
       },
-      "options": {}
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Promedio de duraciones exportadas por los evaluadores, agrupado por resultado técnico. No es el cronómetro de la evaluación en curso. Sin muestras significa que no se recibieron duraciones; no equivale a cero."
     },
     {
-      "id": 99,
-      "title": "Correlated application logs",
-      "type": "logs",
-      "gridPos": {
-        "x": 0,
-        "y": 56,
-        "w": 24,
-        "h": 10
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
+      "id": 112,
+      "title": "Occludra · consultas y protección de datos",
+      "type": "row",
+      "collapsed": true,
+      "panels": [
         {
-          "refId": "A",
-          "expr": "{namespace=~\"mcp-eval-system|mcp-evals|security-gateways\"}"
+          "id": 18,
+          "title": "Consultas activas en Occludra",
+          "description": "Solicitudes que Occludra está atendiendo ahora. Puede ser cero mientras una evaluación clona el repositorio o espera otro componente.",
+          "type": "stat",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum(occludra_active_requests)",
+              "legendFormat": "{{job}}",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0,
+              "decimals": 0,
+              "noValue": "Sin datos",
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#5794F2"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 30,
+            "w": 6,
+            "h": 8
+          }
+        },
+        {
+          "id": 5,
+          "title": "Consultas por segundo · ruta y respuesta HTTP",
+          "type": "timeseries",
+          "gridPos": {
+            "x": 6,
+            "y": 30,
+            "w": 9,
+            "h": 8
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (route, status) (rate(occludra_requests_total[5m]))",
+              "legendFormat": "{{route}} · HTTP {{status}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "min": 0,
+              "noValue": "Sin muestras en este intervalo",
+              "color": {
+                "mode": "palette-classic"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "Promedio de solicitudes terminadas por segundo en una ventana de 5 minutos. 2xx: éxito HTTP; 401: autenticación; 403: rechazo por política; 5xx: error. No identifica una evaluación concreta."
+        },
+        {
+          "id": 6,
+          "title": "Tiempo de respuesta de Occludra · P95",
+          "type": "timeseries",
+          "gridPos": {
+            "x": 15,
+            "y": 30,
+            "w": 9,
+            "h": 8
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "histogram_quantile(0.95, sum by (le, route) (rate(occludra_request_duration_seconds_bucket[5m])))",
+              "legendFormat": "{{route}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "min": 0,
+              "noValue": "Sin muestras en este intervalo",
+              "color": {
+                "mode": "palette-classic"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "Aproximadamente el 95 % de las solicitudes termina en este tiempo o menos. Incluye la respuesta completa del modelo por streaming, no solo el primer token. Sin muestras puede significar que no hubo solicitudes terminadas recientemente."
+        },
+        {
+          "id": 7,
+          "title": "Datos sensibles ocultados por segundo",
+          "type": "timeseries",
+          "gridPos": {
+            "x": 0,
+            "y": 38,
+            "w": 12,
+            "h": 7
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (detector) (rate(occludra_redactions_total[5m]))",
+              "legendFormat": "{{detector}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "min": 0,
+              "noValue": "Sin muestras en este intervalo",
+              "color": {
+                "mode": "palette-classic"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "Frecuencia de reemplazos realizados por cada detector, promediada en 5 minutos. Un reemplazo indica que la protección actuó; no es un error de ejecución."
+        },
+        {
+          "id": 8,
+          "title": "Solicitudes bloqueadas y cambios de proveedor",
+          "type": "timeseries",
+          "gridPos": {
+            "x": 12,
+            "y": 38,
+            "w": 12,
+            "h": 7
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum(rate(occludra_blocked_requests_total[5m]))",
+              "legendFormat": "Bloqueos de Occludra"
+            },
+            {
+              "refId": "B",
+              "expr": "sum(rate(occludra_upstream_failovers_total[5m]))",
+              "legendFormat": "Reintentos con proveedor alternativo"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "min": 0,
+              "noValue": "Sin muestras en este intervalo",
+              "color": {
+                "mode": "palette-classic"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "Tasas medias de 5 minutos. Los bloqueos son rechazos de Occludra por su política; no son los bloqueos del evaluador por Vigil. Un cambio de proveedor es un reintento contra el proveedor alternativo."
         }
       ],
-      "options": {
-        "showTime": true,
-        "wrapLogMessage": true
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 113,
+      "title": "Kubernetes · disponibilidad de los componentes",
+      "type": "row",
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 9,
+          "title": "Réplicas esperadas por componente",
+          "type": "timeseries",
+          "gridPos": {
+            "x": 0,
+            "y": 31,
+            "w": 12,
+            "h": 7
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "kube_deployment_spec_replicas{namespace=~\"mcp-eval-system|mcp-eval-ui|security-gateways\"}",
+              "legendFormat": "{{namespace}} / {{deployment}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0,
+              "noValue": "Sin muestras en este intervalo",
+              "color": {
+                "mode": "palette-classic"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "Cantidad de réplicas solicitadas al clúster. Compará cada componente con el panel de réplicas disponibles."
+        },
+        {
+          "id": 10,
+          "title": "Réplicas disponibles por componente",
+          "type": "timeseries",
+          "gridPos": {
+            "x": 12,
+            "y": 31,
+            "w": 12,
+            "h": 7
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "kube_deployment_status_replicas_available{namespace=~\"mcp-eval-system|mcp-eval-ui|security-gateways\"}",
+              "legendFormat": "{{namespace}} / {{deployment}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0,
+              "noValue": "Sin muestras en este intervalo",
+              "color": {
+                "mode": "palette-classic"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "Cantidad de réplicas listas para servir. Una cantidad inferior a la esperada indica un despliegue incompleto o una interrupción."
+        },
+        {
+          "id": 11,
+          "title": "Reinicios de contenedores · últimos 15 minutos",
+          "type": "timeseries",
+          "gridPos": {
+            "x": 0,
+            "y": 38,
+            "w": 12,
+            "h": 7
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "increase(kube_pod_container_status_restarts_total{namespace=~\"mcp-eval-system|mcp-eval-ui|security-gateways\"}[15m])",
+              "legendFormat": "{{pod}} / {{container}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0,
+              "noValue": "Sin muestras en este intervalo",
+              "color": {
+                "mode": "palette-classic"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "Incremento de reinicios en una ventana móvil de 15 minutos. Los reinicios repetidos pueden señalar problemas de memoria, salud o estabilidad."
+        },
+        {
+          "id": 12,
+          "title": "Errores del operador por segundo",
+          "type": "timeseries",
+          "gridPos": {
+            "x": 12,
+            "y": 38,
+            "w": 12,
+            "h": 7
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (controller) (rate(controller_runtime_reconcile_errors_total[5m]))",
+              "legendFormat": "{{controller}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "min": 0,
+              "noValue": "Sin muestras en este intervalo",
+              "color": {
+                "mode": "palette-classic"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "description": "Errores del controlador de Kubernetes al reconciliar recursos, promediados en 5 minutos. Son errores de administración de la ejecución, no veredictos de seguridad del MCP."
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 114,
+      "title": "Registro técnico · detalle de lo ocurrido",
+      "type": "row",
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 99,
+          "title": "Logs de la plataforma · más recientes primero",
+          "type": "logs",
+          "gridPos": {
+            "x": 0,
+            "y": 32,
+            "w": 24,
+            "h": 10
+          },
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "{namespace=~\"mcp-eval-system|mcp-evals|security-gateways\"}",
+              "queryType": "range",
+              "maxLines": 500
+            }
+          ],
+          "options": {
+            "showTime": true,
+            "wrapLogMessage": true,
+            "sortOrder": "Descending",
+            "enableLogDetails": true,
+            "showLabels": false
+          },
+          "description": "Operador, evaluadores y Occludra durante el intervalo elegido. Abrí los detalles y buscá el nombre de una ejecución para investigar un resultado. Los logs capturados se conservan 7 días."
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 24,
+        "h": 1
       }
     }
   ],
   "links": [
     {
-      "title": "Explore traces",
-      "url": "/explore?left=%7B%22datasource%22%3A%22tempo%22%7D"
+      "title": "Explorar logs",
+      "url": "/explore?left=%7B%22datasource%22%3A%22loki%22%7D"
     },
     {
-      "title": "Prometheus alerts",
-      "url": "http://localhost:9090/alerts"
+      "title": "Explorar trazas",
+      "url": "/explore?left=%7B%22datasource%22%3A%22tempo%22%7D"
     }
-  ]
+  ],
+  "description": "Estado actual de las evaluaciones, resultados de seguridad registrados, actividad de Occludra y disponibilidad de Kubernetes. Distingue los bloqueos por contenido malicioso de los errores de ejecución.",
+  "timezone": "browser"
 }

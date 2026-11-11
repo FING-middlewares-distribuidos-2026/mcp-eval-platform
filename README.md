@@ -304,15 +304,28 @@ kubectl -n security-gateways set env deploy/occludra \
 OpenTelemetry instruments the Go operator, TypeScript evaluator and Occludra.
 Grafana Alloy collects their telemetry; Prometheus stores metrics, Loki stores
 logs, and Tempo stores traces. Grafana provisions all three data sources and
-**Dashboards → MCP evaluation → MCP evaluation platform**, a 14-panel dashboard
-that refreshes every 30 seconds.
+**Dashboards → MCP evaluation → Evaluaciones MCP: estado y seguridad**, a
+dashboard with 19 data panels that refreshes every minute. Gateway,
+Kubernetes and technical-log sections start collapsed to avoid querying every
+panel on initial load; expand a section when you need its details. The dashboard
+separates current activity, recorded security outcomes, gateway traffic and
+Kubernetes availability, with Spanish labels and explanations on each panel.
 
 ### What you can inspect
 
-* **Evaluations:** retained runs by phase, latest terminal failure per server,
-  oldest active evaluation, evaluator duration and controller reconciliation
-  errors. Run counts are gauges over retained CR history; queries take `max`
-  across manager replicas before aggregating to avoid double counting.
+* **Evaluations:** active-run count and age, recorded terminal outcomes,
+  retained runs by phase, evaluator duration and controller reconciliation
+  errors. A `Failed` run with a `Malicious` verdict is shown as **Bloqueado por
+  seguridad**, separately from execution errors. The outcome log and counters
+  use the evaluator's `evaluator finished` events in Loki within the selected
+  time range; they can miss runs whose logs were not collected or which failed
+  before the evaluator started. **Análisis completados** means the pipeline
+  completed, not that its MCP verdict is safe. Current phase counts come from
+  retained Kubernetes CRs; queries take `max` across manager replicas before
+  aggregating to avoid double counting. The legacy
+  `mcp_evaluation_last_run_failed` metric and its alert still reflect the raw
+  `Failed` phase, including security blocks; the dashboard no longer presents
+  that flag as an execution-error verdict.
 * **Gateway:** requests by route/status, P95 duration including the complete SSE
   stream, DLP redactions by detector, policy blocks and upstream failovers.
   Active-request metrics are also available in Explore → Prometheus.
