@@ -3,7 +3,7 @@
 ## 0 — contexto + congelar GitOps (para que Flux no revierta el bloqueo durante la demo)
 
 ```bash
-export KUBECONFIG=~/.kube/k0s-mcp.yaml && kubectl -n flux-system annotate --overwrite kustomization platform reconcile.fluxcd.io/suspended=true
+export KUBECONFIG=~/.kube/k0s-mcp.yaml && kubectl -n flux-system patch kustomization platform --type=merge -p '{"spec":{"suspend":true}}'
 ```
 
 ## 1 — túnel al gateway (auto-regenerable si el link flappea)
