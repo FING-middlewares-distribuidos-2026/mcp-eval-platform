@@ -423,3 +423,68 @@ Decisions made before this log existed are not back-filled here.
   for both token checks, entering Traefik by NodePort over ZeroTier with
   the certificate pinned to the ingress IP, since the university gateway
   that routes 10.66.51.11 goes down).
+
+### 2026-11-10 — Vigil's corpus moves to the PC; Chroma requests what it uses
+- **Decision:** the PC's Vigil reads its corpus from a single-node Chroma
+  in the same compose project (`hack/pc-services`), loaded from the corpus
+  image the cluster uses. The `/chroma` Traefik route and the local copy of
+  the reader token are removed. The cluster's distributed Chroma stays, with
+  memory requests lowered to what was measured plus margin (2.7 GiB → 1.4
+  GiB; limits unchanged), and Flux no longer applies over its MemberLists.
+- **Reason:** with nodo-g1-1 down, Chroma's query path did not fit on the
+  other worker (requests 99 %, real use 55 %), every scan answered 500 and
+  Occludra blocked the chat, `/llm/v1` and the evaluations. A scan now
+  depends on the PC and the relay only.
+- **Alternatives:** keep reading the cluster's Chroma and only lower the
+  requests (still six pods and the ZeroTier path per scan); retire the
+  cluster's Chroma altogether (open: the demo runbook still uses it).
+- **Who decided:** Juan (both moves); Claude (compose layout, an internal
+  Docker network instead of a token, the request values, removing the
+  unused route, `ssa: IfNotPresent` on the MemberLists).
+
+### 2026-11-10 — Occludra's two-sided Vigil scan records, it does not block
+- **Decision:** `VIGIL_IN_ACTION=log` in `deploy/k0s/render.env` (it was
+  `block` since f0bee75, which copied into git what ran live by
+  `kubectl set env`). The scan stays on in both directions and keeps its
+  log line and metric. Blocking an injection for the UI chat and external
+  clients stays with `policy.injection`, unchanged.
+- **Reason:** the two-sided scan reads the whole request, system prompt
+  included, for every client. Vigil flags the UI chat's own system prompt
+  (trained head, sentence "Respondé en español, breve y claro."), so with
+  `block` the chat answered 403 `vigil_block` to every message, measured
+  with "¿Cuál es la capital de Argentina?". Evaluation requests pass
+  through the same scan and quote the MCP under test (not measured).
+- **Alternatives:** leave `block` (chat unusable); turn the scan off
+  (loses the record); change the scan to skip system messages (a change to
+  a teammate's feature).
+- **Who decided:** Juan, by merging this change (proposed by Claude).
+  `DEMO.md` sets `block` by hand for its demo and is not affected.
+
+### 2026-11-10 — In the UI chat only YARA refuses; Spanish YARA rules
+- **Decision:** `policy.injection` gains `min_scanners` and `count_scanners`
+  (defaults: any scanner, every scanner counts). The shipped policy counts
+  only YARA: a YARA match refuses, transformer and vectordb hits are logged
+  and counted as `outcome="warning"` and the message passes. New rules
+  `manifests/vigil-yara/injection-es.yar` cover the Spanish phrasings of
+  instruction override, role hijack and prompt extraction, plus a few
+  English gaps (`pretend you have no restrictions`, `new instructions
+  follow`, `what were your original instructions`).
+- **Reason:** measured on the PC's Vigil with 40 normal chat messages and 15
+  injections (2026-11-10): any scanner refused 26/40 normal messages
+  ("hola", "contame un chiste", "dame una receta"); two scanners 7/40,
+  including every message with a masked secret ("mi contraseña es
+  [REDACTED]": the transformer scores it 1.0 and the corpus' password-game
+  attacks match it), so the masking demo could never answer. Writing in
+  English does not fix it ("my password is [REDACTED]" is also flagged by
+  both, "tell me a short joke" has 5 vector matches). YARA: 0 false
+  positives on 104 normal texts; 78/78 known attack phrasings; on phrasings
+  written after the rules, 9/18 in a first round (the gaps were then fixed)
+  and 12/12 in a second.
+- **Trade-off:** a paraphrased attack that no rule describes passes the chat
+  (it is logged as a warning). The evaluator's rule (1A) is unchanged; it
+  gains the Spanish rules as a second opinion.
+- **Alternatives:** two scanners agree (Juan's first choice; still blocks
+  the secret demo); a multilingual classifier instead of deberta (bigger
+  change, affects the evaluator's calibration).
+- **Who decided:** Juan (asked for normal Spanish messages not to be
+  blocked); the rule, the YARA phrasings and the measurements are Claude's.

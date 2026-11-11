@@ -24,10 +24,6 @@ LLM_REASONING_BUDGET="${LLM_REASONING_BUDGET:-0}"
 # --- Vigil -----------------------------------------------------------------
 # Default: the image CI built for the commit deploy/k0s/render.env names.
 VIGIL_IMAGE="${VIGIL_IMAGE:-}"
-# The cluster's Chroma, through Traefik's websecure NodePort on a node's
-# ZeroTier address (the ingress IP itself is routed by the university's
-# ZeroTier gateway, which goes down). The certificate is checked against
-# the ingress IP it was issued for.
-CHROMA_URL="${CHROMA_URL:-https://10.147.17.228:31365/chroma}"
-CHROMA_TLS_NAME="${CHROMA_TLS_NAME:-10.66.51.11}"
-INGRESS_CA="${INGRESS_CA:-$HOME/.config/mcp-eval/ingress-cert.pem}"
+# Its corpus lives in a Chroma on this PC (loaded by `pc up` from the corpus
+# image deploy/k0s/render.env names). Where its data is kept:
+PC_CHROMA_DIR="${PC_CHROMA_DIR:-$HOME/.cache/mcp-eval/pc-services/chroma}"

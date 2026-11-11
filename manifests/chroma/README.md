@@ -125,3 +125,26 @@ k0s with `kubectl top`: the 13 pods together used ~40m while requesting
 1.9 CPU, which left the two 2-vCPU workers with no room for an evaluation
 pod (750m) — runs failed with "stuck Pending". Requests only reserve
 scheduling room; a busy component can still burst up to its limit.
+
+### Memory requests (2026-11-10)
+
+Memory requests follow what each component was measured to use (kubelet
+`stats/summary`), with room to spare; limits are unchanged. Before, the
+namespace requested 2.7 GiB while using about 0.5 GiB, and with one worker
+down the other (3.8 GiB allocatable) had no room left: the chat, the UI and
+Chroma's own pods stayed Pending although half the node's memory was free.
+
+| Component | Used | Request before | Request now |
+|---|---|---|---|
+| MinIO | 270–340 MiB | 640Mi | 448Mi |
+| query-service | 10 MiB idle, 170–190 MiB querying | 384Mi | 256Mi |
+| Postgres | 32 MiB | 256Mi | 96Mi |
+| rust-frontend-service | 18 MiB | 256Mi | 96Mi |
+| rust-log-service | 7 MiB | 256Mi | 96Mi |
+| garbage-collector | 20 MiB | 256Mi | 64Mi |
+| fn-consumer | 13 MiB | 192Mi | 64Mi |
+| sysdb | 20–38 MiB | 128Mi | 64Mi |
+| rust-sysdb-service | 5 MiB | 128Mi | 64Mi |
+| work-queue-service | 9 MiB | 128Mi | 48Mi |
+
+The compactor keeps its 1Gi request: it does use that while compacting.

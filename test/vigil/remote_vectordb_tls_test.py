@@ -1,8 +1,8 @@
 """TLS options of images/vigil-llm/remote_vectordb.py ([vectordb] ca_file,
 tls_server_name), against a local HTTPS server with a self-signed
-certificate issued for an IP the test never connects to: the PC's Vigil
-enters Traefik through a node's ZeroTier address and verifies the
-certificate of the ingress IP (hack/pc-services).
+certificate issued for an IP the test never connects to: a Vigil outside
+the cluster entering an ingress through a node address and verifying the
+certificate of the ingress IP.
 
 Stdlib + the openssl CLI; no Chroma, no network.
   python3 test/vigil/remote_vectordb_tls_test.py

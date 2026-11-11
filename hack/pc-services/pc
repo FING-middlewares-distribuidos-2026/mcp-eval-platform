@@ -6,7 +6,7 @@
 #   pc down [llm|vigil]   stop
 #   pc status             containers, health, VRAM
 #   pc smoke              one call to each API through its token check
-#   pc logs <service>     follow a service's logs (llm, vigil, vigil-auth)
+#   pc logs <service>     follow a service's logs (llm, vigil, vigil-auth, chroma)
 #
 # The PC is not a cluster node: the cluster calls these APIs over ZeroTier
 # (LOCAL_LLM_URL and VIGIL_REMOTE_URL in deploy/k0s/render.env). Nothing
@@ -18,6 +18,8 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 CONF_DIR="$HOME/.config/mcp-eval"
 export PC_RUN_DIR="${PC_RUN_DIR:-$HOME/.cache/mcp-eval/pc-services/run}"
 export PC_CACHE_DIR="${PC_CACHE_DIR:-$HOME/.cache/mcp-eval/pc-services/vigil-cache}"
+# Vigil's corpus, in a Chroma on this PC: data/ plus a marker per loaded corpus.
+export PC_CHROMA_DIR="${PC_CHROMA_DIR:-$HOME/.cache/mcp-eval/pc-services/chroma}"
 
 if [ -f "$HERE/pc.conf" ]; then
   # shellcheck source=pc.conf.example
@@ -53,6 +55,14 @@ setup_env() {
   export VIGIL_IMAGE="${VIGIL_IMAGE:-$(default_vigil_image)}"
   export PC_UID PC_GID
   PC_UID="$(id -u)"; PC_GID="$(id -g)"
+  # The corpus the cluster's render names: its image, and the file name and
+  # sha256 from the lock.
+  export VIGIL_CORPUS_IMG VIGIL_CORPUS_FILE VIGIL_CORPUS_SHA256
+  VIGIL_CORPUS_IMG="${VIGIL_CORPUS_IMG:-$(. "$ROOT/deploy/k0s/render.env"; echo "$VIGIL_CORPUS_IMG")}"
+  read -r VIGIL_CORPUS_FILE VIGIL_CORPUS_SHA256 < <(python3 -c \
+    'import json,sys; l=json.load(open(sys.argv[1])); print(l["file"], l["sha256"])' \
+    "${VIGIL_CORPUS_LOCK:-$ROOT/hack/vigil-corpus/vigil-corpus-e5s-v3.lock.json}")
+  [ -n "$VIGIL_CORPUS_IMG" ] && [ -n "$VIGIL_CORPUS_SHA256" ] || die "corpus image or lock not found"
 }
 
 compose() {
@@ -70,36 +80,46 @@ compose() {
 }
 
 # The cluster's server.conf (ConfigMap in manifests/vigil-deployment.yaml),
-# pointed at the cluster's Chroma through Traefik, plus our YARA rules and
-# the ingress certificate.
+# pointed at this PC's Chroma, plus our YARA rules.
 prepare_vigil() {
-  [ -s "$INGRESS_CA" ] || die "missing $INGRESS_CA (hack/gitops/secrets.sh writes it)"
-  mkdir -p "$PC_RUN_DIR/conf" "$PC_RUN_DIR/yara-rules" "$PC_CACHE_DIR"
-  python3 - "$ROOT/manifests/vigil-deployment.yaml" "$PC_RUN_DIR/conf/server.conf" "$CHROMA_URL" "$CHROMA_TLS_NAME" <<'PY'
+  mkdir -p "$PC_RUN_DIR/conf" "$PC_RUN_DIR/yara-rules" "$PC_CACHE_DIR" "$PC_CHROMA_DIR/data"
+  python3 - "$ROOT/manifests/vigil-deployment.yaml" "$PC_RUN_DIR/conf/server.conf" <<'PY'
 import re, sys
-src, dst, url, name = sys.argv[1:]
+src, dst = sys.argv[1:]
 s = open(src).read()
 m = re.search(r'  server.conf: \|\n((?:    .*\n|\n)+)', s)
 if not m:
     sys.exit("server.conf not found in " + src)
 conf = '\n'.join(l[4:] for l in m.group(1).splitlines()) + '\n'
-conf, n = re.subn(r'(?m)^chroma_url = .*$',
-                  f'chroma_url = {url}\nca_file = /app/ingress-ca.pem\ntls_server_name = {name}', conf)
+# No token: this Chroma has none; only Vigil and the loader reach it.
+conf, n = re.subn(r'(?m)^chroma_url = .*$', 'chroma_url = http://chroma:8000', conf)
 if n != 1:
     sys.exit("chroma_url not found in server.conf")
 open(dst, 'w').write(conf)
 PY
-  rm -f "$PC_RUN_DIR/yara-rules/"*.yar
+  rm -f "$PC_RUN_DIR/yara-rules/"*.yar "$PC_RUN_DIR/ingress-ca.pem"
   cp "$ROOT"/manifests/vigil-yara/*.yar "$PC_RUN_DIR/yara-rules/"
-  cp "$INGRESS_CA" "$PC_RUN_DIR/ingress-ca.pem"
   chmod -R a+rX "$PC_RUN_DIR"
+}
+
+# Fill the PC's Chroma once per corpus. The loader checks the file's sha256
+# and skips collections that are already complete; the marker only saves
+# reading the 200 MB file again on every `pc up`. To reload from scratch:
+# `pc down vigil`, delete $PC_CHROMA_DIR, `pc up vigil`.
+load_corpus() {
+  local marker="$PC_CHROMA_DIR/loaded-${VIGIL_CORPUS_SHA256:0:12}"
+  if [ -f "$marker" ]; then log "corpus ${VIGIL_CORPUS_SHA256:0:12} already loaded"; return; fi
+  log "loading the corpus into Chroma from $VIGIL_CORPUS_IMG (240k vectors, takes a few minutes)"
+  compose run --rm corpus-loader || die "corpus load failed (output above); Vigil fails closed without it"
+  rm -f "$PC_CHROMA_DIR"/loaded-*
+  : > "$marker"
 }
 
 services_for() { # services_for [llm|vigil|""]
   case "${1:-}" in
-    "")    echo "llm vigil vigil-auth" ;;
+    "")    echo "llm chroma vigil vigil-auth" ;;
     llm)   echo "llm" ;;
-    vigil) echo "vigil vigil-auth" ;;
+    vigil) echo "chroma vigil vigil-auth" ;;
     *)     die "unknown service group '$1' (llm | vigil)" ;;
   esac
 }
@@ -123,7 +143,7 @@ wait_healthy() { # wait_healthy <seconds> <container>...
 up() {
   setup_env
   local svcs; svcs="$(services_for "${1:-}")"
-  export LLAMA_API_KEY="" CHROMA_TOKEN="" VIGIL_API_TOKEN=""
+  export LLAMA_API_KEY="" VIGIL_API_TOKEN=""
   if [[ " $svcs " == *" llm "* ]]; then
     LLAMA_API_KEY="$(secret local-llm.key)"
     # The old single-container script (hack/local-llm/llm) used the same name.
@@ -134,16 +154,24 @@ up() {
     fi
   fi
   if [[ " $svcs " == *" vigil "* ]]; then
-    CHROMA_TOKEN="$(secret chroma-reader-token)"
     VIGIL_API_TOKEN="$(secret vigil-api-token)"
     prepare_vigil
-    log "Vigil image $VIGIL_IMAGE, Chroma $CHROMA_URL (certificate for $CHROMA_TLS_NAME)"
+    log "Vigil image $VIGIL_IMAGE, corpus in $PC_CHROMA_DIR"
+    compose up -d chroma
+    wait_healthy 120 mcp-pc-chroma-1
+    load_corpus
   fi
+  # Vigil reads server.conf only at start, and compose does not notice a
+  # changed mounted file: recreate it so `pc up` always applies the conf.
+  local vigil_svcs="" other=""
+  for s in $svcs; do case "$s" in vigil|vigil-auth) vigil_svcs+=" $s" ;; chroma) ;; *) other+=" $s" ;; esac; done
   # shellcheck disable=SC2086
-  compose up -d $svcs
+  [ -z "$other" ] || compose up -d $other
+  # shellcheck disable=SC2086
+  [ -z "$vigil_svcs" ] || compose up -d --force-recreate --no-deps $vigil_svcs
   local containers=()
   [[ " $svcs " == *" llm "* ]] && containers+=(mcp-local-llm)
-  [[ " $svcs " == *" vigil "* ]] && containers+=(mcp-pc-vigil-1 mcp-pc-vigil-auth-1)
+  [[ " $svcs " == *" vigil "* ]] && containers+=(mcp-pc-chroma-1 mcp-pc-vigil-1 mcp-pc-vigil-auth-1)
   wait_healthy 900 "${containers[@]}"
   status
 }
@@ -185,6 +213,6 @@ case "${1:-}" in
   down)   down "${2:-}" ;;
   status) status ;;
   smoke)  smoke ;;
-  logs)   setup_env; compose logs -f "${2:?pc logs <llm|vigil|vigil-auth>}" ;;
+  logs)   setup_env; compose logs -f "${2:?pc logs <llm|vigil|vigil-auth|chroma>}" ;;
   *)      sed -n '3,14p' "$0"; exit 1 ;;
 esac

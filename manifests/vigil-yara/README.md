@@ -10,10 +10,16 @@ own. The run aborts only when Vigil's transformer AND a YARA rule (or the
 vectordb) flag the same text (`runner/src/vigil.ts`, `combineScannerResults`).
 A single scanner only warns.
 
+In the **UI chat** (Occludra's `policy.injection`, `count_scanners: ["YARA"]`)
+these rules are the only scanner that refuses: Vigil's transformer is an
+English model that flags ordinary Spanish requests, so its hits and the
+vectordb's are warnings there.
+
 | File | Rules |
 |---|---|
 | `injection.yar` | InstructionOverride, RoleHijack, SystemPromptExtraction, HiddenInstructionMarker, ChatTemplateMarker |
 | `exfiltration.yar` | ExfiltrationInstruction, MarkdownImageExfiltration, CredentialInText |
+| `injection-es.yar` | InstructionOverrideEs, RoleHijackEs, SystemPromptExtractionEs (Spanish phrasings of the same families) |
 
 ## Upstream rules (vigil-llm @ f2b4c13)
 
