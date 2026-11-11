@@ -9,10 +9,11 @@
         "baseURL": "__OCCLUDRA_BASE_URL__"
       },
       "models": {
-        "muse-spark-1.3-contributor-free": {
-          "name": "Muse Spark (free)"
+        "gemma-4-12b-it": {
+          "name": "Gemma 4 12B (GPU PC gateway)"
         }
       }
     }
-  }
+  },
+  "model": "opencode/gemma-4-12b-it"
 }
