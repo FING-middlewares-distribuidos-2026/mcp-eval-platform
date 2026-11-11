@@ -1,15 +1,15 @@
 # Demo — comandos, uno por bloque, en orden
 
-## 1 — contexto del cluster
+## 0 — contexto + congelar GitOps (para que Flux no revierta el bloqueo durante la demo)
 
 ```bash
-export KUBECONFIG=~/.kube/k0s-mcp.yaml
+export KUBECONFIG=~/.kube/k0s-mcp.yaml && kubectl -n flux-system annotate --overwrite kustomization platform reconcile.fluxcd.io/suspended=true
 ```
 
-## 2 — túnel al gateway
+## 1 — túnel al gateway (auto-regenerable si el link flappea)
 
 ```bash
-kubectl -n security-gateways port-forward svc/occludra-service 30080:8080 &
+(while true; do kubectl -n security-gateways port-forward svc/occludra-service 30080:8080 >/dev/null 2>&1; sleep 3; done &)
 ```
 
 ## 3 — activar el BLOQUEO para la demo (el repo usa log para no frenar el chat del UI por falsos positivos)
