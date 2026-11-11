@@ -1,0 +1,80 @@
+# ---------------------------------------------------------------------------
+# NetBird PEER (client) — el lado del cluster de la malla WireGuard.
+#
+# Additivo y opt-in (deploy.sh: DEPLOY_NETBIRD_PEER=1). No toca ningún
+# deployment existente: su trabajo es ser el par de la malla que anuncia las
+# rutas del cluster (service CIDRs), para que clientes externos enrolados
+# (p.ej. el container images/llm-router) alcancen occludra/vigil por su
+# ClusterIP a través del mesh — sin sidecars en los gateways ni port-forwards.
+#
+# Prerrequisitos (una vez, 2 minutos — ver el encabezado de deploy.sh):
+#   1. Controlplane: cuenta gratis en https://app.netbird.io (o el self-hosted
+#      del companion cuando exista IdP). Crear una Setup Key (uso "reusable").
+#   2. kubectl -n netbird create secret generic netbird-auth \
+#        --from-literal=setup-key=<LA-KEY>
+#      (los secretos NO viajan por git — mismo patrón que occludra-external-tokens)
+#   3. En el dashboard de NetBird: Networking -> Routes -> agregar las rutas
+#      del cluster (k0s: 10.96.0.0/12 service CIDR) con ESTE peer como router.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: netbird
+  labels: {app.kubernetes.io/part-of: mcp-eval-platform}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: netbird-peer-conf
+  namespace: netbird
+data:
+  # El management cloud (o el self-hosted cuando exista):
+  NETBIRD_MANAGEMENT_URL: "https://api.netbird.io"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: netbird-peer
+  namespace: netbird
+  labels: {app.kubernetes.io/name: netbird-peer}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app.kubernetes.io/name: netbird-peer}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: netbird-peer}
+    spec:
+      # TUN + enrutamiento: el peer anuncia rutas, necesita la capability y el device
+      tolerations:
+        - {key: node-role.kubernetes.io/control-plane, operator: Exists}
+      containers:
+        - name: netbird
+          image: netbirdio/netbird:v0.82.1
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NETBIRD_MANAGEMENT_URL
+              valueFrom: {configMapKeyRef: {name: netbird-peer-conf, key: NETBIRD_MANAGEMENT_URL}}
+            - name: NB_SETUP_KEY
+              valueFrom: {secretKeyRef: {name: netbird-auth, key: setup-key}}
+          args: ["up", "--log-level", "info"]
+          securityContext:
+            capabilities: {add: ["NET_ADMIN"]}
+            readOnlyRootFilesystem: false
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          livenessProbe:
+            exec: {command: ["/bin/sh", "-c", "netbird status | grep -q Connected"]}
+            periodSeconds: 30
+            failureThreshold: 3
+          startupProbe:
+            exec: {command: ["/bin/sh", "-c", "netbird status | grep -q Connected"]}
+            periodSeconds: 10
+            failureThreshold: 30
+      volumes:
+        - name: dev-net-tun
+          hostPath: {path: /dev/net/tun, type: CharDevice}
+        - name: state
+          emptyDir: {}
