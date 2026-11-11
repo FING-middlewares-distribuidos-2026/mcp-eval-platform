@@ -51,7 +51,7 @@ spec:
         - {key: node-role.kubernetes.io/control-plane, operator: Exists}
       containers:
         - name: netbird
-          image: netbirdio/netbird:v0.82.1
+          image: netbirdio/netbird:0.82.1
           imagePullPolicy: IfNotPresent
           env:
             - name: NETBIRD_MANAGEMENT_URL
