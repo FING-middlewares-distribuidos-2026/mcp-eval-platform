@@ -81,7 +81,7 @@ kubectl -n chroma top pod
 ## 12 — FINAL: el router transparente — cualquier app llama a api.openai.com y sale por NUESTRO gateway
 
 ```bash
-docker build -t llm-router:latest images/llm-router
+docker build -t llm-router:latest ~/Desktop/sist_d/midd/images/llm-router
 ```
 
 ## 13 — correr el container (sus propios túneles; nada del host ni del cluster se toca)
